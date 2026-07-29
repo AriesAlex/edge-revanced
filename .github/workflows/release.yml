@@ -189,6 +189,12 @@ jobs:
           if ("$resources" -notmatch "resource $iconId mipmap/edge_app_icon") {
             throw 'Patched APK does not use the stable Edge launcher icon.'
           }
+          if ("$resources" -notmatch 'drawable/edge_revanced_splash') {
+            throw 'Patched APK does not contain the Edge ReVanced splash artwork.'
+          }
+          if ("$resources" -notmatch '=@drawable/edge_revanced_system_splash') {
+            throw 'Patched APK does not use the Edge ReVanced Android system splash artwork.'
+          }
 
           $certificates = & $apksigner verify --print-certs $apk 2>&1
           if (
@@ -197,6 +203,8 @@ jobs:
           ) {
             throw 'Patched APK is not signed by the persistent Edge ReVanced key.'
           }
+
+          Copy-Item -LiteralPath $apk -Destination 'artifacts\edge-revanced.apk'
 
       - uses: actions/upload-artifact@v6
         with:
@@ -211,6 +219,7 @@ jobs:
         run: |
           $version = '${{ needs.discover.outputs.version }}'
           $tag = '${{ needs.discover.outputs.release_tag }}'
+          $latestApk = 'artifacts\edge-revanced.apk'
           $apk = "artifacts\edge-revanced-$version.apk"
           $rvp = "artifacts\edge-revanced-$version.rvp"
           $patchCommit = '${{ github.sha }}'
@@ -232,7 +241,7 @@ jobs:
               "repos/$env:GITHUB_REPOSITORY/git/refs/tags/$tag" `
               -f "sha=$patchCommit" `
               -F 'force=true' | Out-Null
-            gh release upload $tag $apk $rvp --clobber
+            gh release upload $tag $latestApk $apk $rvp --clobber
             gh release edit $tag `
               --title "Edge ReVanced $version" `
               --notes-file $notesPath
@@ -244,7 +253,7 @@ jobs:
               -f "target_commitish=$patchCommit" | Out-Null
           }
           else {
-            gh release create $tag $apk $rvp `
+            gh release create $tag $latestApk $apk $rvp `
               --target $patchCommit `
               --title "Edge ReVanced $version" `
               --notes-file $notesPath

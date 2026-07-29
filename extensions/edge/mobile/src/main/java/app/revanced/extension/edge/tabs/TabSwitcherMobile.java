@@ -8,7 +8,7 @@ import java.lang.ref.WeakReference;
 import java.util.WeakHashMap;
 
 public final class TabSwitcherMobile {
-    private static final int BOTTOM_CLEARANCE_DP = 12;
+    private static final int MINIMUM_BOTTOM_CLEARANCE_DP = 12;
     private static final WeakHashMap<ViewGroup, LayoutState> INSTALLED_VIEWS =
         new WeakHashMap<>();
 
@@ -41,7 +41,8 @@ public final class TabSwitcherMobile {
         private final int originalTop;
         private final int originalEnd;
         private final int originalBottom;
-        private final int bottomClearance;
+        private final int minimumBottomClearance;
+        private int appliedBottomClearance;
 
         private LayoutState(ViewGroup view) {
             viewReference = new WeakReference<>(view);
@@ -49,8 +50,9 @@ public final class TabSwitcherMobile {
             originalTop = view.getPaddingTop();
             originalEnd = view.getPaddingEnd();
             originalBottom = view.getPaddingBottom();
-            bottomClearance = Math.round(
-                view.getResources().getDisplayMetrics().density * BOTTOM_CLEARANCE_DP
+            minimumBottomClearance = Math.round(
+                view.getResources().getDisplayMetrics().density *
+                    MINIMUM_BOTTOM_CLEARANCE_DP
             );
         }
 
@@ -61,15 +63,48 @@ public final class TabSwitcherMobile {
                 return;
             }
 
+            int contentTop = Integer.MAX_VALUE;
+            int contentBottom = Integer.MIN_VALUE;
+            int tallestChild = 0;
+            for (int index = 0; index < view.getChildCount(); index++) {
+                View child = view.getChildAt(index);
+                child.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
+                if (child.getHeight() == 0) {
+                    continue;
+                }
+
+                contentTop = Math.min(contentTop, child.getTop());
+                contentBottom = Math.max(contentBottom, child.getBottom());
+                tallestChild = Math.max(tallestChild, child.getHeight());
+            }
+            if (tallestChild == 0) {
+                return;
+            }
+
+            boolean singleRow =
+                contentBottom - contentTop <= tallestChild + minimumBottomClearance;
+            int desiredBottomClearance = 0;
+            if (singleRow) {
+                int originalEmptySpace = Math.max(
+                    0,
+                    contentTop - originalTop + appliedBottomClearance
+                );
+                desiredBottomClearance = Math.max(
+                    minimumBottomClearance,
+                    originalEmptySpace / 2
+                );
+            }
+            if (desiredBottomClearance == appliedBottomClearance) {
+                return;
+            }
+
+            appliedBottomClearance = desiredBottomClearance;
             view.setPaddingRelative(
                 originalStart,
                 originalTop,
                 originalEnd,
-                originalBottom + bottomClearance
+                originalBottom + appliedBottomClearance
             );
-            for (int index = 0; index < view.getChildCount(); index++) {
-                view.getChildAt(index).setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
-            }
         }
 
         @Override

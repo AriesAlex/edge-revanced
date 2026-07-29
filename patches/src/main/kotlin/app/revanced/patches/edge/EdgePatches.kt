@@ -28,6 +28,7 @@ import com.android.tools.smali.dexlib2.iface.instruction.FiveRegisterInstruction
 import com.android.tools.smali.dexlib2.iface.instruction.OneRegisterInstruction
 import com.android.tools.smali.dexlib2.iface.instruction.TwoRegisterInstruction
 import com.android.tools.smali.dexlib2.immutable.ImmutableMethodImplementation
+import org.w3c.dom.Document
 import org.w3c.dom.Element
 import java.io.File
 import java.net.URI
@@ -39,6 +40,16 @@ private const val EDGE_CANARY_SIDE_BY_SIDE_PACKAGE = "$EDGE_CANARY_PACKAGE.revan
 private const val EDGE_REVANCED_NAME = "Edge ReVanced"
 private const val EDGE_CANARY_ICON = "@mipmap/edge_app_icon_canary"
 private const val EDGE_STABLE_ICON = "@mipmap/edge_app_icon"
+private const val EDGE_TABBED_ACTIVITY =
+    "org.chromium.chrome.browser.ChromeTabbedActivity"
+private const val EDGE_CANARY_SPLASH_ICON =
+    "@mipmap/edge_app_icon_foreground_canary"
+private const val EDGE_SPLASH_ARTWORK = "edge-revanced-splash.png"
+private const val EDGE_SYSTEM_SPLASH_ARTWORK =
+    "edge-revanced-system-splash.png"
+private const val EDGE_SPLASH_DRAWABLE = "edge_revanced_splash.png"
+private const val EDGE_SYSTEM_SPLASH_DRAWABLE =
+    "edge_revanced_system_splash.png"
 private const val ANDROID_FRAMEWORK_APK_ENV = "EDGE_REVANCED_ANDROID_FRAMEWORK_APK"
 private const val ANDROID_FRAMEWORK_DIRECTORY_ENV = "EDGE_REVANCED_ANDROID_FRAMEWORK_DIRECTORY"
 private const val DEVTOOLS_OVERFLOW_ID = 42
@@ -86,6 +97,40 @@ private fun isWebUrl(value: String?): Boolean {
     }.getOrDefault(false)
 }
 
+private fun Element.hasDimension(name: String, expected: Float): Boolean {
+    val value = getAttribute(name)
+        .removeSuffix("dip")
+        .removeSuffix("dp")
+        .toFloatOrNull()
+    return value == expected
+}
+
+private fun Document.isEdgeSplashDrawable(): Boolean {
+    if (documentElement.tagName != "layer-list") return false
+
+    val bitmaps = getElementsByTagName("bitmap")
+    if (bitmaps.length != 2) return false
+
+    val bitmapElements = (0 until bitmaps.length).map {
+        bitmaps.item(it) as Element
+    }
+    val centeredLogo = bitmapElements.singleOrNull {
+        it.getAttribute("android:gravity") == "center" &&
+            it.hasDimension("android:width", 142f) &&
+            it.hasDimension("android:height", 142f)
+    }
+    val microsoftLogo = bitmapElements.singleOrNull {
+        it.getAttribute("android:gravity") == "bottom" &&
+            it.hasDimension("android:width", 101f) &&
+            it.hasDimension("android:height", 23f)
+    }
+    if (centeredLogo == null || microsoftLogo == null) return false
+
+    val microsoftItem = microsoftLogo.parentNode as? Element ?: return false
+    return microsoftItem.tagName == "item" &&
+        microsoftItem.hasDimension("android:bottom", 70f)
+}
+
 private val androidFrameworkPatch = resourcePatch {
     compatibleWith(EDGE_CANARY_PACKAGE)
 
@@ -117,12 +162,13 @@ private val androidFrameworkPatch = resourcePatch {
 @Suppress("unused")
 val edgeRevancedBrandingPatch = resourcePatch(
     name = "Edge ReVanced branding",
-    description = "Переименовывает приложение и заменяет Canary-иконку на обычную иконку Microsoft Edge.",
+    description = "Переименовывает приложение, заменяет Canary-иконку и устанавливает фирменный splash Edge ReVanced.",
 ) {
     compatibleWith(EDGE_CANARY_PACKAGE)
     dependsOn(androidFrameworkPatch)
 
     apply {
+        lateinit var tabbedActivityTheme: String
         document("AndroidManifest.xml").use { document ->
             val applications = document.getElementsByTagName("application")
             check(applications.length == 1) {
@@ -136,6 +182,181 @@ val edgeRevancedBrandingPatch = resourcePatch(
 
             application.setAttribute("android:label", EDGE_REVANCED_NAME)
             application.setAttribute("android:icon", EDGE_STABLE_ICON)
+
+            val tabbedActivities = document.getElementsByTagName("activity")
+                .let { activities ->
+                    (0 until activities.length)
+                        .map { activities.item(it) as Element }
+                        .filter {
+                            it.getAttribute("android:name") == EDGE_TABBED_ACTIVITY
+                        }
+                }
+            check(tabbedActivities.size == 1) {
+                "Expected exactly one Edge tabbed activity"
+            }
+            tabbedActivityTheme = tabbedActivities.single()
+                .getAttribute("android:theme")
+                .removePrefix("@style/")
+                .also {
+                    check(it.isNotBlank()) {
+                        "The Edge tabbed activity has no theme"
+                    }
+                }
+        }
+
+        val splashArtwork = this["res/drawable-nodpi/$EDGE_SPLASH_DRAWABLE", false]
+        check(splashArtwork.parentFile.mkdirs() || splashArtwork.parentFile.isDirectory) {
+            "Could not create the Edge ReVanced splash resource directory"
+        }
+        patchClassLoader.getResourceAsStream(EDGE_SPLASH_ARTWORK).use { artwork ->
+            checkNotNull(artwork) {
+                "Missing $EDGE_SPLASH_ARTWORK"
+            }
+            splashArtwork.outputStream().use(artwork::copyTo)
+        }
+        val systemSplashArtwork =
+            this["res/drawable-nodpi/$EDGE_SYSTEM_SPLASH_DRAWABLE", false]
+        patchClassLoader.getResourceAsStream(EDGE_SYSTEM_SPLASH_ARTWORK)
+            .use { artwork ->
+                checkNotNull(artwork) {
+                    "Missing $EDGE_SYSTEM_SPLASH_ARTWORK"
+                }
+                systemSplashArtwork.outputStream().use(artwork::copyTo)
+            }
+
+        val drawableDirectory = this["res/drawable", false]
+        val edgeSplashDrawables = drawableDirectory
+            .listFiles { file -> file.isFile && file.extension == "xml" }
+            .orEmpty()
+            .filter { file ->
+                document("res/drawable/${file.name}").use(Document::isEdgeSplashDrawable)
+            }
+        check(edgeSplashDrawables.size == 1) {
+            "Expected exactly one Edge splash drawable, found ${edgeSplashDrawables.size}"
+        }
+        val splashBackground = edgeSplashDrawables.single()
+        document("res/drawable/${splashBackground.name}").use { document ->
+            val root = document.documentElement
+            val backgroundItems = (0 until root.childNodes.length)
+                .mapNotNull { root.childNodes.item(it) as? Element }
+                .filter {
+                    it.tagName == "item" &&
+                        it.hasAttribute("android:drawable")
+                }
+            check(backgroundItems.size == 1) {
+                "Expected exactly one Edge splash background item"
+            }
+            backgroundItems.single().setAttribute(
+                "android:drawable",
+                "@android:color/black",
+            )
+
+            val bitmaps = document.getElementsByTagName("bitmap")
+            val oldItems = (0 until bitmaps.length).map {
+                bitmaps.item(it).parentNode
+            }
+            oldItems.forEach(root::removeChild)
+
+            val artworkItem = document.createElement("item")
+            val artworkBitmap = document.createElement("bitmap").apply {
+                setAttribute("android:gravity", "bottom|center_horizontal")
+                setAttribute("android:src", "@drawable/edge_revanced_splash")
+            }
+            artworkItem.appendChild(artworkBitmap)
+            root.appendChild(artworkItem)
+        }
+
+        document("res/values/styles.xml").use { document ->
+            val matchingStyles = document.getElementsByTagName("style")
+                .let { styles ->
+                    (0 until styles.length)
+                        .map { styles.item(it) as Element }
+                        .filter {
+                            it.getAttribute("name") == tabbedActivityTheme
+                        }
+                }
+            check(matchingStyles.size == 1) {
+                "Could not uniquely identify the Edge tabbed activity theme"
+            }
+            val themeItems = matchingStyles.single()
+                .getElementsByTagName("item")
+                .let { items ->
+                    (0 until items.length).map { items.item(it) as Element }
+                }
+            val systemSplashIcon = themeItems.filter {
+                it.textContent.trim() == EDGE_CANARY_SPLASH_ICON
+            }
+            check(systemSplashIcon.size == 1) {
+                "Could not uniquely identify the Android system splash icon"
+            }
+            systemSplashIcon.single().textContent =
+                "@drawable/edge_revanced_system_splash"
+
+            val systemSplashBackground = themeItems.filter {
+                it.textContent.trim().startsWith("@color/")
+            }
+            check(systemSplashBackground.size == 1) {
+                "Could not uniquely identify the Android system splash background"
+            }
+            systemSplashBackground.single().textContent = "@android:color/black"
+        }
+
+        val splashBackgroundReference =
+            "@drawable/${splashBackground.nameWithoutExtension}"
+        val layoutDirectories = this["res", false]
+            .listFiles { file ->
+                file.isDirectory && file.name.startsWith("layout")
+            }
+            .orEmpty()
+        var patchedSplashLayouts = 0
+        layoutDirectories.forEach { directory ->
+            directory
+                .listFiles { file -> file.isFile && file.extension == "xml" }
+                .orEmpty()
+                .filter {
+                    it.readText().contains("@id/edge_splash_screen_view")
+                }
+                .forEach { file ->
+                    val relativePath = "res/${directory.name}/${file.name}"
+                    document(relativePath).use { document ->
+                        val elements = document.getElementsByTagName("*")
+                            .let { nodes ->
+                                (0 until nodes.length)
+                                    .map { nodes.item(it) as Element }
+                            }
+                        val splashContainers = elements.filter {
+                            it.getAttribute("android:id") ==
+                                "@id/edge_splash_screen_view"
+                        }
+                        if (splashContainers.isEmpty()) {
+                            return@use
+                        }
+                        check(splashContainers.size == 1) {
+                            "Expected one splash container in $relativePath"
+                        }
+                        val splashIcons = elements.filter {
+                            it.getAttribute("android:id") in setOf(
+                                "@id/splash_edge_icon",
+                                "@id/splash_bottom_microsoft_logo",
+                            )
+                        }
+                        check(splashIcons.size == 2) {
+                            "Expected both legacy splash icons in $relativePath"
+                        }
+
+                        splashContainers.single().setAttribute(
+                            "android:background",
+                            splashBackgroundReference,
+                        )
+                        splashIcons.forEach {
+                            it.setAttribute("android:visibility", "invisible")
+                        }
+                        patchedSplashLayouts++
+                    }
+                }
+        }
+        check(patchedSplashLayouts > 0) {
+            "Could not find any Edge splash layouts"
         }
     }
 }
