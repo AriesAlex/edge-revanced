@@ -42,6 +42,10 @@ private const val DEVTOOLS_EXTENSION_CLASS =
     "Lapp/revanced/extension/edge/devtools/DevToolsMobile;"
 private const val DEVTOOLS_FRONTEND_ARCHIVE = "edge-devtools-frontend.zip"
 private const val DEVTOOLS_FRONTEND_ASSET_DIRECTORY = "assets/edge_devtools"
+private const val EDGE_EXTENSION_INSTALL_ACTION =
+    "com.microsoft.edge.extensions.ACTION_INSTALL_EXTENSION_FOR_DEV_MODE"
+private const val EDGE_EXTENSION_CRX_EXTRA =
+    "com.microsoft.edge.extensions.EXTENSION_CRX"
 private const val CHROME_WEB_STORE_EXTENSION_CLASS =
     "Lapp/revanced/extension/edge/extensions/ChromeWebStore;"
 private const val MICROSOFT_ACCOUNT_NOTICE_EXTENSION_CLASS =
@@ -681,6 +685,17 @@ val chromeWebStorePatch = bytecodePatch(
     dependsOn(edgeMobileExtensionPatch)
 
     apply {
+        val nativeCrxInstaller = firstMethodDeclaratively {
+            returnType("V")
+            strings(
+                EDGE_EXTENSION_INSTALL_ACTION,
+                EDGE_EXTENSION_CRX_EXTRA,
+            )
+        }
+        check(nativeCrxInstaller.implementation != null) {
+            "Edge's native CRX installation contract is unavailable"
+        }
+
         val chromeWebStoreObserver = firstMethodDeclaratively {
             returnType("V")
             parameterTypes(

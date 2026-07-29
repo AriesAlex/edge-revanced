@@ -5,6 +5,7 @@ import app.revanced.extension.edge.WebContentsJavaScript;
 
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
@@ -30,7 +31,8 @@ public final class ChromeWebStore {
     private static final String UPDATE_URL_PREFIX =
         "https://clients2.google.com/service/update2/crx" +
         "?response=redirect" +
-        "&prodversion=152.0.7966.0" +
+        "&prodversion=";
+    private static final String UPDATE_URL_EXTENSION_PREFIX =
         "&acceptformat=crx2,crx3" +
         "&x=id%3D";
     private static final String UPDATE_URL_SUFFIX =
@@ -47,6 +49,7 @@ public final class ChromeWebStore {
     private static final int CONNECT_TIMEOUT_MS = 15_000;
     private static final int READ_TIMEOUT_MS = 60_000;
     private static final byte[] CRX_MAGIC = {'C', 'r', '2', '4'};
+    private static final Pattern VERSION_NAME = Pattern.compile("^(\\d+)\\.");
     private static final Pattern DETAIL_PATH = Pattern.compile(
         "^/detail/[^/]+/([a-p]{32})(?:/.*)?$"
     );
@@ -220,7 +223,7 @@ public final class ChromeWebStore {
                 extensionDirectory,
                 extensionId + ".crx.download"
             );
-            downloadCrx(extensionId, temporaryFile);
+            downloadCrx(context, extensionId, temporaryFile);
             replaceFile(temporaryFile, crxFile);
 
             File downloadedCrx = crxFile;
@@ -241,10 +244,18 @@ public final class ChromeWebStore {
         }
     }
 
-    private static void downloadCrx(String extensionId, File destination)
-        throws IOException {
+    private static void downloadCrx(
+        Context context,
+        String extensionId,
+        File destination
+    ) throws IOException {
+        String productVersion = browserProductVersion(context);
         HttpURLConnection connection = (HttpURLConnection) new URL(
-            UPDATE_URL_PREFIX + extensionId + UPDATE_URL_SUFFIX
+            UPDATE_URL_PREFIX +
+                productVersion +
+                UPDATE_URL_EXTENSION_PREFIX +
+                extensionId +
+                UPDATE_URL_SUFFIX
         ).openConnection();
         connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
         connection.setReadTimeout(READ_TIMEOUT_MS);
@@ -252,7 +263,9 @@ public final class ChromeWebStore {
         connection.setRequestProperty(
             "User-Agent",
             "Mozilla/5.0 (Linux; Android) AppleWebKit/537.36 " +
-                "(KHTML, like Gecko) Chrome/152.0.7966.0 Mobile Safari/537.36"
+                "(KHTML, like Gecko) Chrome/" +
+                productVersion +
+                " Mobile Safari/537.36"
         );
 
         try {
@@ -291,6 +304,30 @@ public final class ChromeWebStore {
             }
         } finally {
             connection.disconnect();
+        }
+    }
+
+    private static String browserProductVersion(Context context)
+        throws IOException {
+        try {
+            String versionName = context
+                .getPackageManager()
+                .getPackageInfo(context.getPackageName(), 0)
+                .versionName;
+            Matcher version = VERSION_NAME.matcher(
+                versionName == null ? "" : versionName
+            );
+            if (!version.find()) {
+                throw new IOException(
+                    "Could not determine Edge's product version"
+                );
+            }
+            return version.group(1) + ".0.0.0";
+        } catch (PackageManager.NameNotFoundException exception) {
+            throw new IOException(
+                "Could not read Edge's package version",
+                exception
+            );
         }
     }
 
