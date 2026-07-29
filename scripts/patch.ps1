@@ -5,6 +5,8 @@ param(
 
     [string]$Output,
 
+    [string]$Rvp,
+
     [string]$NewTabUrl = 'http://tabpage.ariex.ru',
 
     [switch]$SideBySide,
@@ -17,8 +19,14 @@ $ErrorActionPreference = 'Stop'
 
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $cliJar = Join-Path $projectRoot 'local\patcher-22.0.0.jar'
-$patchesFile = Join-Path $projectRoot 'patches\build\libs\patches-0.1.0.rvp'
-$keystore = Join-Path $projectRoot 'local\edge-mod.keystore'
+$defaultPatchesFile = Join-Path $projectRoot 'patches\build\libs\patches-0.1.0.rvp'
+$patchesFile = if ($Rvp) {
+    (Resolve-Path -LiteralPath $Rvp).Path
+}
+else {
+    $defaultPatchesFile
+}
+$keystore = Join-Path $projectRoot 'edge-mod.keystore'
 $inputApk = (Resolve-Path -LiteralPath $Apk).Path
 $defaultJavaHome = 'C:\Program Files\Android\Android Studio\jbr'
 $javaHome = if ($env:JAVA_HOME) { $env:JAVA_HOME } else { $defaultJavaHome }
@@ -59,7 +67,12 @@ if ($outputApk -eq $inputApk) {
 $outputDirectory = Split-Path -Parent $outputApk
 New-Item -ItemType Directory -Force -Path $outputDirectory | Out-Null
 
-& (Join-Path $PSScriptRoot 'build.ps1') -CpuCount $CpuCount
+if ($Rvp) {
+    & (Join-Path $PSScriptRoot 'bootstrap.ps1') -CliOnly
+}
+else {
+    & (Join-Path $PSScriptRoot 'build.ps1') -CpuCount $CpuCount
+}
 
 if (-not (Test-Path -LiteralPath $cliJar)) {
     throw "ReVanced CLI not found at $cliJar."
@@ -143,6 +156,7 @@ try {
     }
 
     Write-Host "Patched APK: $outputApk"
+    Write-Host "Patch bundle: $patchesFile"
     Write-Host "Signing key: $keystore"
 }
 finally {

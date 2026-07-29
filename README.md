@@ -64,7 +64,7 @@ adb install -r
   для touch-интерфейса.
 - `scripts/bootstrap.ps1` проверяет ReVanced CLI по SHA-256, получает
   зафиксированный commit официального Gradle plugin и собирает DevTools
-  frontend.
+  frontend. Режим `-CliOnly` получает только CLI для применения готового `.rvp`.
 - `scripts/build.ps1` собирает Android-совместимый `.rvp`.
 - `scripts/patch.ps1` применяет все патчи, перепаковывает APK и подписывает его.
 
@@ -106,6 +106,21 @@ Actions кеширует его по хешам builder/mobile-скриптов.
     -Apk 'C:\path\to\Edge-Canary-arm64.apk'
 ```
 
+Без `-Rvp` скрипт сначала пересобирает bundle из текущих исходников. Готовый
+bundle, например скачанный из GitHub Actions, применяется без Gradle, Bun и
+повторного скачивания DevTools frontend:
+
+```powershell
+.\scripts\patch.ps1 `
+    -Apk 'C:\path\to\Edge-Canary-arm64.apk' `
+    -Rvp 'C:\path\to\patches-0.1.0.rvp'
+```
+
+DevTools frontend уже находится внутри `.rvp`. Для применения всё ещё нужны
+ReVanced CLI, Android SDK framework `37.0`, `aapt2`, исходный APK и ключ
+подписи: CLI должен добавить содержащиеся в bundle файлы в resources Edge и
+пересобрать APK.
+
 Другой адрес новой вкладки и лимит CPU:
 
 ```powershell
@@ -119,8 +134,9 @@ Actions кеширует его по хешам builder/mobile-скриптов.
 Gradle и Patcher по умолчанию ограничены четырьмя логическими CPU и работают с
 пониженным приоритетом.
 
-Постоянный ключ создаётся в `local/edge-mod.keystore`. Не удаляйте его: Android
-разрешает обновлять установленный мод только APK с той же подписью.
+Постоянный `edge-mod.keystore` хранится в корне и намеренно отслеживается в
+приватном репозитории как часть переносимого состояния проекта. Не заменяйте
+его: Android разрешает обновлять установленный мод только APK с той же подписью.
 
 ```powershell
 adb install -r 'C:\path\to\Edge-Canary-arm64-revanced.apk'

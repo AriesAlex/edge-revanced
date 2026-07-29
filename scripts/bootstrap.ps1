@@ -1,3 +1,8 @@
+[CmdletBinding()]
+param(
+    [switch]$CliOnly
+)
+
 $ErrorActionPreference = 'Stop'
 
 $cliVersion = '6.0.0'
@@ -42,6 +47,10 @@ else {
             Remove-Item -LiteralPath $temporaryJar
         }
     }
+}
+
+if ($CliOnly) {
+    return
 }
 
 if (-not (Test-Path -LiteralPath (Join-Path $gradlePluginDirectory '.git'))) {
