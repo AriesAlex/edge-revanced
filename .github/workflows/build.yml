@@ -30,7 +30,7 @@ jobs:
 
       - name: Build Android patch bundle
         shell: pwsh
-        run: .\scripts\build.ps1 -CpuCount 4
+        run: .\scripts\build.ps1 -CpuCount ([Environment]::ProcessorCount)
 
       - uses: actions/upload-artifact@v6
         with:
