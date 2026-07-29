@@ -4,6 +4,7 @@ import app.revanced.extension.edge.EdgeContext;
 import app.revanced.extension.edge.WebContentsJavaScript;
 
 import android.content.Context;
+import android.content.Intent;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
@@ -36,9 +37,12 @@ public final class ChromeWebStore {
         "%26installsource%3Dondemand%26uc";
     private static final String INSTALL_FRAGMENT_PREFIX = "edge-revanced-install=";
     private static final String LOG_TAG = "EdgeRevancedCWS";
-    private static final String EXTENSION_STATE_CONTROLLER_CLASS =
-        "com.microsoft.edge.extensions.GlobalExtensionStateController";
-    private static final String NATIVE_METHODS_CLASS = "J.N";
+    private static final String CHROME_TABBED_ACTIVITY_CLASS =
+        "org.chromium.chrome.browser.ChromeTabbedActivity";
+    private static final String INSTALL_ACTION =
+        "com.microsoft.edge.extensions.ACTION_INSTALL_EXTENSION_FOR_DEV_MODE";
+    private static final String CRX_EXTRA =
+        "com.microsoft.edge.extensions.EXTENSION_CRX";
     private static final int MAX_CRX_SIZE_BYTES = 256 * 1024 * 1024;
     private static final int CONNECT_TIMEOUT_MS = 15_000;
     private static final int READ_TIMEOUT_MS = 60_000;
@@ -317,16 +321,12 @@ public final class ChromeWebStore {
         File crxFile
     ) {
         try {
-            Class<?> extensionStateController = Class.forName(
-                EXTENSION_STATE_CONTROLLER_CLASS
-            );
-            extensionStateController
-                .getDeclaredMethod("a", boolean.class)
-                .invoke(null, true);
-            Class.forName(NATIVE_METHODS_CLASS)
-                .getDeclaredMethod("VO", int.class, Object.class)
-                .invoke(null, 1, crxFile.getAbsolutePath());
-        } catch (ReflectiveOperationException | RuntimeException exception) {
+            Intent intent = new Intent(INSTALL_ACTION);
+            intent.setClassName(context, CHROME_TABBED_ACTIVITY_CLASS);
+            intent.putExtra(CRX_EXTRA, crxFile.getAbsolutePath());
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            context.startActivity(intent);
+        } catch (RuntimeException exception) {
             Log.e(LOG_TAG, "Could not start Edge's CRX installer", exception);
             showMessage(
                 context,
