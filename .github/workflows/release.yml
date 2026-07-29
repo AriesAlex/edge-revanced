@@ -39,8 +39,12 @@ jobs:
           $metadata = bun .\scripts\edge-canary.ts metadata | ConvertFrom-Json
           $releaseTag = "edge-canary-$($metadata.version)"
 
-          gh release view $releaseTag *> $null
-          $releaseExists = $LASTEXITCODE -eq 0
+          $releaseTags = @(
+            gh api --paginate `
+              "repos/$env:GITHUB_REPOSITORY/releases?per_page=100" `
+              --jq '.[].tag_name'
+          )
+          $releaseExists = $releaseTag -in $releaseTags
           $shouldBuild = '${{ github.event_name }}' -eq 'workflow_dispatch' -or -not $releaseExists
 
           "version=$($metadata.version)" >> $env:GITHUB_OUTPUT
