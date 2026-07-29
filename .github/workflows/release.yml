@@ -90,7 +90,9 @@ jobs:
             throw 'Android sdkmanager was not found.'
           }
 
-          & $sdkManager.FullName 'platforms;android-37' 'build-tools;37.0.0'
+          & $sdkManager.FullName --channel=3 `
+            'platforms;android-37.0' `
+            'build-tools;37.0.0'
           if ($LASTEXITCODE -ne 0) {
             throw "Android SDK installation failed with exit code $LASTEXITCODE."
           }
