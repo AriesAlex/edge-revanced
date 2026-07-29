@@ -204,13 +204,21 @@ jobs:
             throw 'Patched APK is not signed by the persistent Edge ReVanced key.'
           }
 
-          Copy-Item -LiteralPath $apk -Destination 'artifacts\edge-revanced.apk'
-
-      - uses: actions/upload-artifact@v6
+      - name: Upload patched APK artifact
+        uses: actions/upload-artifact@v6
         with:
-          name: edge-revanced-${{ needs.discover.outputs.version }}
-          path: artifacts/*
+          name: edge-revanced-${{ needs.discover.outputs.version }}-apk
+          path: artifacts/edge-revanced-${{ needs.discover.outputs.version }}.apk
           if-no-files-found: error
+          compression-level: 0
+
+      - name: Upload patch bundle artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: edge-revanced-${{ needs.discover.outputs.version }}-rvp
+          path: artifacts/edge-revanced-${{ needs.discover.outputs.version }}.rvp
+          if-no-files-found: error
+          compression-level: 0
 
       - name: Publish GitHub Release
         shell: pwsh
@@ -223,6 +231,7 @@ jobs:
           $apk = "artifacts\edge-revanced-$version.apk"
           $rvp = "artifacts\edge-revanced-$version.rvp"
           $patchCommit = '${{ github.sha }}'
+          Copy-Item -LiteralPath $apk -Destination $latestApk
           $notes = @"
           Автоматическая сборка Edge ReVanced на основе Microsoft Edge Canary $version.
 

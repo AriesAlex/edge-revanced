@@ -213,8 +213,11 @@ Workflow `Build Edge ReVanced APK` можно в любой момент зап�
    `edge-mod.keystore`;
 5. проверяет имя, иконку, оба splash-ресурса, версию, подпись и DEX-контракт новой
    вкладки;
-6. публикует APK и `.rvp` как Actions artifact и в GitHub Release
+6. публикует APK и `.rvp` как два отдельных Actions artifacts и в GitHub Release
    `Edge ReVanced <версия Canary>`.
+
+GitHub всегда скачивает Actions artifacts как ZIP. Для прямой установки без
+распаковки используйте кнопку в начале README или APK из GitHub Release.
 
 Push в `main` выполняет только дешёвое определение последней версии. Тяжёлая
 сборка запускается автоматически лишь тогда, когда Release для этой версии
