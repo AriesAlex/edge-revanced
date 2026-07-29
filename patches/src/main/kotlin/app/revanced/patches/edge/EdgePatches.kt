@@ -9,6 +9,8 @@ import app.revanced.patcher.extensions.fieldReference
 import app.revanced.patcher.extensions.getInstruction
 import app.revanced.patcher.extensions.instructions
 import app.revanced.patcher.extensions.methodReference
+import app.revanced.patcher.extensions.replaceInstruction
+import app.revanced.patcher.extensions.stringReference
 import app.revanced.patcher.firstMethodDeclaratively
 import app.revanced.patcher.immutableClassDef
 import app.revanced.patcher.name
@@ -48,6 +50,12 @@ private const val EDGE_EXTENSION_CRX_EXTRA =
     "com.microsoft.edge.extensions.EXTENSION_CRX"
 private const val CHROME_WEB_STORE_EXTENSION_CLASS =
     "Lapp/revanced/extension/edge/extensions/ChromeWebStore;"
+private const val WEB_CONTENTS_CLASS =
+    "Lorg/chromium/content_public/browser/WebContents;"
+private const val WEB_CONTENTS_JAVASCRIPT_EXTENSION_CLASS =
+    "Lapp/revanced/extension/edge/WebContentsJavaScript;"
+private const val EVALUATE_JAVASCRIPT_METHOD_PLACEHOLDER =
+    "__EDGE_EVALUATE_JAVASCRIPT_METHOD__"
 private const val MICROSOFT_ACCOUNT_NOTICE_EXTENSION_CLASS =
     "Lapp/revanced/extension/edge/account/MicrosoftAccountNotice;"
 private const val TAB_SWITCHER_EXTENSION_CLASS =
@@ -169,6 +177,53 @@ val sideBySideInstallPatch = resourcePatch(
 private val edgeMobileExtensionPatch = bytecodePatch {
     compatibleWith(EDGE_CANARY_PACKAGE)
     extendWith("extensions/edge/mobile.rve")
+}
+
+private val webContentsJavaScriptPatch = bytecodePatch {
+    compatibleWith(EDGE_CANARY_PACKAGE)
+    dependsOn(edgeMobileExtensionPatch)
+
+    apply {
+        val evaluateJavaScript = firstMethodDeclaratively {
+            definingClass(WEB_CONTENTS_CLASS)
+            returnType("V")
+            custom {
+                parameters.size == 2 &&
+                    parameters[0].type == "Ljava/lang/String;" &&
+                    immutableClassDef.methods.count { method ->
+                        method.returnType == "V" &&
+                            method.parameters.size == 2 &&
+                            method.parameters[0].type == "Ljava/lang/String;"
+                    } == 1
+            }
+        }
+        val evaluateBridge = firstMethodDeclaratively {
+            definingClass(WEB_CONTENTS_JAVASCRIPT_EXTENSION_CLASS)
+            name("evaluate")
+            returnType("V")
+            parameterTypes("Ljava/lang/Object;", "Ljava/lang/String;")
+            strings(EVALUATE_JAVASCRIPT_METHOD_PLACEHOLDER)
+        }
+        val placeholderIndices = evaluateBridge.instructions
+            .mapIndexedNotNull { index, instruction ->
+                index.takeIf {
+                    instruction.stringReference?.string ==
+                        EVALUATE_JAVASCRIPT_METHOD_PLACEHOLDER
+                }
+            }
+        check(placeholderIndices.size == 1) {
+            "Could not locate the JavaScript bridge method placeholder"
+        }
+        val placeholderIndex = placeholderIndices.single()
+        val placeholderRegister = (
+            evaluateBridge.getInstruction(placeholderIndex) as OneRegisterInstruction
+        ).registerA
+
+        evaluateBridge.replaceInstruction(
+            placeholderIndex,
+            """const-string v$placeholderRegister, "${evaluateJavaScript.name.toSmaliString()}"""",
+        )
+    }
 }
 
 private val devToolsFrontendPatch = resourcePatch {
@@ -682,7 +737,7 @@ val chromeWebStorePatch = bytecodePatch(
     description = "Включает обычную установку с сайта Chrome Web Store и автоматически активирует установленные расширения.",
 ) {
     compatibleWith(EDGE_CANARY_PACKAGE)
-    dependsOn(edgeMobileExtensionPatch)
+    dependsOn(webContentsJavaScriptPatch)
 
     apply {
         val nativeCrxInstaller = firstMethodDeclaratively {
@@ -816,7 +871,7 @@ val dismissMicrosoftAccountNoticePatch = bytecodePatch(
     description = "Автоматически закрывает повторяющееся информационное окно Microsoft после входа, не отключая аккаунт и синхронизацию.",
 ) {
     compatibleWith(EDGE_CANARY_PACKAGE)
-    dependsOn(edgeMobileExtensionPatch)
+    dependsOn(webContentsJavaScriptPatch)
 
     apply {
         val urlUpdated = firstMethodDeclaratively {

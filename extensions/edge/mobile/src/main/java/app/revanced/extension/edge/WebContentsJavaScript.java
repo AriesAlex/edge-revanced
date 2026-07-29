@@ -43,7 +43,10 @@ public final class WebContentsJavaScript {
         for (Method method : webContents.getClass().getMethods()) {
             Class<?>[] parameterTypes = method.getParameterTypes();
             if (
-                method.getName().equals("Z") &&
+                // Replaced with Edge's current obfuscated method name by the RVP.
+                method.getName().equals(
+                    "__EDGE_EVALUATE_JAVASCRIPT_METHOD__"
+                ) &&
                 parameterTypes.length == 2 &&
                 parameterTypes[0] == String.class
             ) {
