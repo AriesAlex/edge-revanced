@@ -115,17 +115,19 @@ try {
     $env:EDGE_REVANCED_ANDROID_FRAMEWORK_APK = $androidFrameworkApk
     $env:EDGE_REVANCED_ANDROID_FRAMEWORK_DIRECTORY = Join-Path $temporaryFiles 'patcher'
 
+    # These names cross the native PowerShell/Java boundary on Windows runners.
+    # Keep the machine identifiers ASCII; patch descriptions remain localized.
     $selectedPatches = @(
-        'Брендинг Edge ReVanced'
-        'Кнопка DevTools'
-        'Своя новая вкладка'
-        'Установка расширений из Chrome Web Store'
-        'Удобный экран вкладок'
-        'Свайп вверх к вкладкам'
-        'Без повторяющегося окна аккаунта Microsoft'
+        'Edge ReVanced branding'
+        'Mobile DevTools'
+        'Custom new tab'
+        'Chrome Web Store extension installation'
+        'Thumb-reach tab switcher'
+        'Swipe up to tabs'
+        'Dismiss Microsoft account notice'
     )
     if ($SideBySide) {
-        $selectedPatches += 'Отдельная тестовая установка'
+        $selectedPatches += 'Side-by-side test installation'
     }
 
     $patchArguments = @(
@@ -143,7 +145,7 @@ try {
     foreach ($patchName in $selectedPatches) {
         $patchArguments += '-e', $patchName
     }
-    $patchArguments += '-O', "Адрес новой вкладки=$NewTabUrl", $inputApk
+    $patchArguments += '-O', "New tab URL=$NewTabUrl", $inputApk
 
     & $javaExecutable @patchArguments 2>&1 | Tee-Object -Variable patchLog
 

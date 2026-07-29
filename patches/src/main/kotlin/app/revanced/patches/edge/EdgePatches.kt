@@ -102,7 +102,7 @@ private val androidFrameworkPatch = resourcePatch {
 
 @Suppress("unused")
 val edgeRevancedBrandingPatch = resourcePatch(
-    name = "Брендинг Edge ReVanced",
+    name = "Edge ReVanced branding",
     description = "Переименовывает приложение и заменяет Canary-иконку на обычную иконку Microsoft Edge.",
 ) {
     compatibleWith(EDGE_CANARY_PACKAGE)
@@ -128,7 +128,7 @@ val edgeRevancedBrandingPatch = resourcePatch(
 
 @Suppress("unused")
 val sideBySideInstallPatch = resourcePatch(
-    name = "Отдельная тестовая установка",
+    name = "Side-by-side test installation",
     description = "Устанавливает мод рядом с официальным Edge Canary, не удаляя его данные.",
     use = false,
 ) {
@@ -232,13 +232,13 @@ private val devToolsFrontendPatch = resourcePatch {
 
 @Suppress("unused")
 val customNewTabPatch = bytecodePatch(
-    name = "Своя новая вкладка",
+    name = "Custom new tab",
     description = "Открывает выбранную веб-страницу вместо встроенной новой вкладки Edge.",
 ) {
     compatibleWith(EDGE_CANARY_PACKAGE)
 
     val newTabUrl by stringOption(
-        name = "Адрес новой вкладки",
+        name = "New tab URL",
         description = "Полный HTTP- или HTTPS-адрес страницы.",
         default = "http://tabpage.ariex.ru",
         required = true,
@@ -298,7 +298,7 @@ val customNewTabPatch = bytecodePatch(
 
 @Suppress("unused")
 val devToolsMenuPatch = bytecodePatch(
-    name = "Кнопка DevTools",
+    name = "Mobile DevTools",
     description = "Добавляет мобильный DevTools с локальным подключением к текущей вкладке Edge.",
 ) {
     compatibleWith(EDGE_CANARY_PACKAGE)
@@ -499,7 +499,7 @@ val devToolsMenuPatch = bytecodePatch(
 
 @Suppress("unused")
 val tabSwitcherThumbReachPatch = bytecodePatch(
-    name = "Удобный экран вкладок",
+    name = "Thumb-reach tab switcher",
     description = "Размещает старые вкладки снизу справа, а новые добавляет вверх для управления большим пальцем.",
 ) {
     compatibleWith(EDGE_CANARY_PACKAGE)
@@ -631,7 +631,7 @@ val tabSwitcherThumbReachPatch = bytecodePatch(
 
 @Suppress("unused")
 val swipeToTabSwitcherPatch = bytecodePatch(
-    name = "Свайп вверх к вкладкам",
+    name = "Swipe up to tabs",
     description = "Открывает экран вкладок свайпом вверх по панели инструментов независимо от её положения.",
 ) {
     compatibleWith(EDGE_CANARY_PACKAGE)
@@ -674,7 +674,7 @@ val swipeToTabSwitcherPatch = bytecodePatch(
 
 @Suppress("unused")
 val chromeWebStorePatch = bytecodePatch(
-    name = "Установка расширений из Chrome Web Store",
+    name = "Chrome Web Store extension installation",
     description = "Включает обычную установку с сайта Chrome Web Store и автоматически активирует установленные расширения.",
 ) {
     compatibleWith(EDGE_CANARY_PACKAGE)
@@ -797,7 +797,7 @@ val chromeWebStorePatch = bytecodePatch(
 
 @Suppress("unused")
 val dismissMicrosoftAccountNoticePatch = bytecodePatch(
-    name = "Без повторяющегося окна аккаунта Microsoft",
+    name = "Dismiss Microsoft account notice",
     description = "Автоматически закрывает повторяющееся информационное окно Microsoft после входа, не отключая аккаунт и синхронизацию.",
 ) {
     compatibleWith(EDGE_CANARY_PACKAGE)
