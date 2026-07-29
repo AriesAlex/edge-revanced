@@ -2,12 +2,12 @@ group = "app.revanced"
 
 patches {
     about {
-        name = "ReVanced Patches template"
-        description = "Patches template for ReVanced"
-        source = "git@github.com:revanced/revanced-patches-template.git"
-        author = "ReVanced"
-        contact = "contact@revanced.app"
-        website = "https://revanced.app"
+        name = "Edge ReVanced"
+        description = "Патчи мобильного Microsoft Edge Canary"
+        source = "https://github.com/AriesAlex/edge-revanced"
+        author = "ArieX"
+        contact = ""
+        website = "https://github.com/AriesAlex/edge-revanced"
         license = "GNU General Public License v3.0"
     }
 }

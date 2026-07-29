@@ -1,20 +1,23 @@
-rootProject.name = "revanced-patches-template"
+rootProject.name = "edge-revanced"
 
 pluginManagement {
+    includeBuild("local/revanced-patches-gradle-plugin")
+
     repositories {
         gradlePluginPortal()
         google()
-        maven {
-            name = "GitHubPackages"
-            url = uri("https://maven.pkg.github.com/revanced/registry")
-            credentials {
-                username = providers.gradleProperty("gpr.user").orNull ?: System.getenv("GITHUB_ACTOR")
-                password = providers.gradleProperty("gpr.key").orNull ?: System.getenv("GITHUB_TOKEN")
-            }
+        mavenCentral()
+    }
+}
+
+dependencyResolutionManagement {
+    repositories {
+        flatDir {
+            dirs(rootDir.resolve("local"))
         }
     }
 }
 
 plugins {
-    id("app.revanced.patches") version "1.0.0-dev.5"
+    id("app.revanced.patches") version "1.0.0-dev.11"
 }

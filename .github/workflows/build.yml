@@ -1,0 +1,31 @@
+name: Build
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  patches:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Build Android patch bundle
+        shell: pwsh
+        run: .\scripts\build.ps1 -CpuCount 4
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: edge-revanced-rvp
+          path: patches/build/libs/*.rvp
+          if-no-files-found: error

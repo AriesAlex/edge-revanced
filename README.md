@@ -1,136 +1,178 @@
-<p align="center">
-  <picture>
-    <source
-      width="256px"
-      media="(prefers-color-scheme: dark)"
-      srcset="assets/revanced-headline/revanced-headline-vertical-dark.svg"
-    >
-    <img 
-      width="256px"
-      src="assets/revanced-headline/revanced-headline-vertical-light.svg"
-    >
-  </picture>
-  <br>
-  <a href="https://revanced.app/">
-     <picture>
-         <source height="24px" media="(prefers-color-scheme: dark)" srcset="assets/revanced-logo/revanced-logo.svg" />
-         <img height="24px" src="assets/revanced-logo/revanced-logo.svg" />
-     </picture>
-   </a>&nbsp;&nbsp;&nbsp;
-   <a href="https://github.com/ReVanced">
-       <picture>
-           <source height="24px" media="(prefers-color-scheme: dark)" srcset="https://i.ibb.co/dMMmCrW/Git-Hub-Mark.png" />
-           <img height="24px" src="https://i.ibb.co/9wV3HGF/Git-Hub-Mark-Light.png" />
-       </picture>
-   </a>&nbsp;&nbsp;&nbsp;
-   <a href="http://revanced.app/discord">
-       <picture>
-           <source height="24px" media="(prefers-color-scheme: dark)" srcset="https://user-images.githubusercontent.com/13122796/178032563-d4e084b7-244e-4358-af50-26bde6dd4996.png" />
-           <img height="24px" src="https://user-images.githubusercontent.com/13122796/178032563-d4e084b7-244e-4358-af50-26bde6dd4996.png" />
-       </picture>
-   </a>&nbsp;&nbsp;&nbsp;
-   <a href="https://reddit.com/r/revancedapp">
-       <picture>
-           <source height="24px" media="(prefers-color-scheme: dark)" srcset="https://user-images.githubusercontent.com/13122796/178032351-9d9d5619-8ef7-470a-9eec-2744ece54553.png" />
-           <img height="24px" src="https://user-images.githubusercontent.com/13122796/178032351-9d9d5619-8ef7-470a-9eec-2744ece54553.png" />
-       </picture>
-   </a>&nbsp;&nbsp;&nbsp;
-   <a href="https://t.me/app_revanced">
-      <picture>
-         <source height="24px" media="(prefers-color-scheme: dark)" srcset="https://user-images.githubusercontent.com/13122796/178032213-faf25ab8-0bc3-4a94-a730-b524c96df124.png" />
-         <img height="24px" src="https://user-images.githubusercontent.com/13122796/178032213-faf25ab8-0bc3-4a94-a730-b524c96df124.png" />
-      </picture>
-   </a>&nbsp;&nbsp;&nbsp;
-   <a href="https://x.com/revancedapp">
-      <picture>
-         <source media="(prefers-color-scheme: dark)" srcset="https://user-images.githubusercontent.com/93124920/270180600-7c1b38bf-889b-4d68-bd5e-b9d86f91421a.png">
-         <img height="24px" src="https://user-images.githubusercontent.com/93124920/270108715-d80743fa-b330-4809-b1e6-79fbdc60d09c.png" />
-      </picture>
-   </a>&nbsp;&nbsp;&nbsp;
-   <a href="https://www.youtube.com/@ReVanced">
-      <picture>
-         <source height="24px" media="(prefers-color-scheme: dark)" srcset="https://user-images.githubusercontent.com/13122796/178032714-c51c7492-0666-44ac-99c2-f003a695ab50.png" />
-         <img height="24px" src="https://user-images.githubusercontent.com/13122796/178032714-c51c7492-0666-44ac-99c2-f003a695ab50.png" />
-     </picture>
-   </a>
-   <br>
-   <br>
-   Continuing the legacy of Vanced
-</p>
+# Edge ReVanced
 
-# 👋🧩 ReVanced Patches template
+ReVanced-патчи для Microsoft Edge Canary на Android с упором на удобство
+телефонного интерфейса.
 
-![GitHub Workflow Status (with event)](https://img.shields.io/github/actions/workflow/status/ReVanced/revanced-patches-template/release.yml)
-![GPLv3 License](https://img.shields.io/badge/License-GPL%20v3-yellow.svg)
+Патчи проверены на ARM64-сборках:
 
-Template repository for ReVanced Patches.
+- `152.0.4180.0`;
+- `152.0.4184.0`.
 
-## ❓ About
+В коде нет whitelist версий. Патчи доступны для пакета
+`com.microsoft.emmx.canary` и ищут точки внедрения по структурным признакам:
+стабильным Chromium/Microsoft API, сигнатурам, строкам, resource references и
+характерным инструкциям. Если нужный code path изменится, сборка должна упасть
+на конкретном fingerprint, а не молча изменить похожий метод.
 
-This is a template to create a new ReVanced Patches repository.  
-The repository can have multiple patches, and patches from other repositories can be used together.
+## Возможности
 
-For an example repository, see [ReVanced Patches](https://github.com/revanced/revanced-patches).
+- **Своя новая вкладка** — открывает настраиваемый HTTP/HTTPS-адрес вместо
+  встроенной NTP. По умолчанию используется `http://tabpage.ariex.ru`.
+- **Мобильные DevTools** — добавляет штатный пункт «Средства разработчика» в
+  меню Edge, запускает встроенный Chromium DevTools frontend через локальный
+  CDP-proxy и адаптирует интерфейс к портретному экрану. Кнопка `»` для скрытых
+  панелей остаётся доступной на нижней панели.
+- **Экран вкладок для правой руки** — первая вкладка находится справа снизу,
+  новые вкладки заполняют сетку в обратном порядке вверх, а карточки остаются
+  полноценно прокручиваемыми.
+- **Свайп вверх к вкладкам** — открывает экран вкладок свайпом вверх по панели
+  инструментов при верхнем и нижнем расположении адресной строки.
+- **Chrome Web Store** — включает обычную кнопку установки расширений на сайте
+  Chrome Web Store, передаёт установку родному механизму Edge и автоматически
+  активирует успешно установленное расширение.
+- **Без повторяющегося окна аккаунта Microsoft** — закрывает только
+  информационное веб-окно «Краткое примечание о вашей учетной записи
+  Майкрософт», не отключая аккаунт и синхронизацию.
 
-## 🚀 Get started
+## Как устроен проект
 
-To start using this template, follow these steps:
+```text
+чистый Edge APK
+      │
+      ▼
+ReVanced Patcher 22
+      ├── Kotlin bytecode/resource patches
+      ├── mobile.rve с runtime Java-кодом
+      └── мобильный Chromium DevTools frontend
+      │
+      ▼
+пересобранные DEX и resources
+      │
+      ▼
+подпись постоянным edge-mod.keystore
+      │
+      ▼
+adb install -r
+```
 
-1. [Create a new repository using this template](https://github.com/new?template_name=revanced-patches-template&template_owner=ReVanced)
-2. Set up the [build.gradle.kts](patches/build.gradle.kts) file (Specifically, the [group of the project](patches/build.gradle.kts#L1),
-and the [About](patches/build.gradle.kts#L5-L11))
-3. Update dependencies in the [libs.versions.toml](gradle/libs.versions.toml) file
-4. [Create a pass-phrased GPG master key and subkey](https://mikeross.xyz/create-gpg-key-pair-with-subkeys/)
-   1. Add the private key as a secret named [GPG_PRIVATE_KEY](.github/workflows/release.yml#L52) to your repository
-   2. Add the passphrase as a secret named [GPG_PASSPHRASE](.github/workflows/release.yml#L53) to your repository
-   3. Add the fingerprint of the GPG subkey as a secret named [GPG_FINGERPRINT](.github/workflows/release.yml#L54) to your repository
-5. Set up the [README.md](README.md) file[^1] (e.g, title, description, license, summary of the patches
-that are included in the repository), the [issue templates](.github/ISSUE_TEMPLATE)[^2]  and the [contribution guidelines](CONTRIBUTING.md)[^3]
+- `patches/src/main/kotlin/app/revanced/patches/edge/EdgePatches.kt` содержит
+  fingerprints и статические изменения DEX/resources.
+- `extensions/edge/mobile` собирается в `mobile.rve`. Его Java-код выполняется
+  уже внутри Edge: запускает DevTools proxy, обрабатывает Chrome Web Store,
+  закрывает точное account notice и настраивает Android View экрана вкладок.
+- `scripts/devtools-mobile.js` модифицирует собранный Chromium DevTools frontend
+  для touch-интерфейса.
+- `scripts/bootstrap.ps1` проверяет ReVanced CLI по SHA-256, получает
+  зафиксированный commit официального Gradle plugin и собирает DevTools
+  frontend.
+- `scripts/build.ps1` собирает Android-совместимый `.rvp`.
+- `scripts/patch.ps1` применяет все патчи, перепаковывает APK и подписывает его.
 
-🎉 You are now ready to start creating patches!
+`.rvp` — это JAR-контейнер с manifest metadata, JVM-классами, их Android DEX
+версией, runtime extension и ресурсами патчей. Сам Edge внутрь `.rvp` не входит.
 
-[^1]: [Example README.md file](https://github.com/ReVanced/revanced-patches/blob/main/README.md)
-[^2]: [Example issue templates](https://github.com/ReVanced/revanced-patches/tree/main/.github/ISSUE_TEMPLATE)
-[^3]: [Example contribution guidelines](https://github.com/ReVanced/revanced-patches/blob/main/CONTRIBUTING.md)
+## Первый запуск
 
-## 🔘 Optional steps
+Нужны:
 
-You can also add the following things to the repository:
+- Windows PowerShell;
+- Git;
+- JDK 21;
+- Bun;
+- Android SDK Platform `37.0` и Build-Tools `37.0.0` для перепаковки Edge;
+- чистый монолитный ARM64 APK Edge Canary, не split APK.
 
-- API documentation, if you want to publish your patches as a library
+```powershell
+.\scripts\bootstrap.ps1
+.\scripts\build.ps1
+```
 
-## 🧑‍💻 Usage
+Bootstrap создаёт только ignored-артефакты в `local/` и воспроизводимо получает:
 
-To develop and release ReVanced Patches using this template, some things need to be considered:
+- ReVanced CLI `6.0.0` / Patcher `22.0.0`;
+- официальный `revanced-patches-gradle-plugin` на зафиксированном commit;
+- Chromium DevTools frontend с русской и английской локалями.
 
-- Development starts in feature branches. Once a feature branch is ready, it is squashed and merged into the `dev` branch
-- The `dev` branch is merged into the `main` branch once it is ready for release
-- Semantic versioning is used to version ReVanced Patches. ReVanced Patches have a public API for other patches to use
-- Semantic commit messages are used for commits
-- Commits on the `dev` branch and `main` branch are automatically released
-via the [release.yml](.github/workflows/release.yml) workflow, which is also responsible for generating the changelog
-and updating the version of ReVanced Patches. It is triggered by pushing to the `dev` or `main` branch.
-The workflow uses the `publish` task to publish the release of ReVanced Patches
-- The `buildAndroid` task is used to build ReVanced Patches so that it can be used on Android.
-The `publish` task depends on the `buildAndroid` task, so it will be run automatically when publishing a release.
+## Создание APK
 
-## 📚 Everything else
+```powershell
+.\scripts\patch.ps1 `
+    -Apk 'C:\path\to\Edge-Canary-arm64.apk'
+```
 
-### 📙 Contributing
+Другой адрес новой вкладки и лимит CPU:
 
-Thank you for considering contributing to ReVanced Patches template.  
-You can find the contribution guidelines [here](CONTRIBUTING.md).
+```powershell
+.\scripts\patch.ps1 `
+    -Apk 'C:\path\to\Edge-Canary-arm64.apk' `
+    -NewTabUrl 'https://example.com/start' `
+    -CpuCount 6
+```
 
-### 🛠️ Building
+Результат сохраняется рядом с исходным APK с суффиксом `-revanced.apk`.
+Gradle и Patcher по умолчанию ограничены четырьмя логическими CPU и работают с
+пониженным приоритетом.
 
-To build ReVanced Patches template,
-you can follow the [ReVanced documentation](https://github.com/ReVanced/revanced-documentation).
+Постоянный ключ создаётся в `local/edge-mod.keystore`. Не удаляйте его: Android
+разрешает обновлять установленный мод только APK с той же подписью.
 
-## 📜 Licence
+```powershell
+adb install -r 'C:\path\to\Edge-Canary-arm64-revanced.apk'
+```
 
-ReVanced Patches template is licensed under the GPLv3 licence.
-Please see the [license file](LICENSE) for more information.
-[tl;dr](https://www.tldrlegal.com/license/gnu-general-public-license-v3-gpl-3) you may copy, distribute
-and modify ReVanced Patches template as long as you track changes/dates in source files.
-Any modifications to ReVanced Patches template must also be made available under the GPL,
-along with build & install instructions.
+Подписанный мод нельзя поставить поверх официального Edge с подписью Microsoft.
+Первый переход требует удалить официальную Canary. Последующие сборки Edge
+ReVanced обновляются через `adb install -r` без удаления данных.
+
+Для отдельной тестовой установки доступен пакет
+`com.microsoft.emmx.canary.revanced`:
+
+```powershell
+.\scripts\patch.ps1 `
+    -Apk 'C:\path\to\Edge-Canary-arm64.apk' `
+    -SideBySide
+```
+
+Этот режим не является основным: Microsoft/Google login и внешние интеграции
+могут проверять исходное package name.
+
+## Обновление на новую версию Edge
+
+1. Скачайте чистый монолитный `arm64-v8a` APK новой Canary.
+2. Запустите тот же `scripts/patch.ps1` без изменения номера версии в коде.
+3. Убедитесь, что все пользовательские патчи завершились с `succeeded`.
+4. Установите APK через `adb install -r`.
+5. На настоящем ARM64-устройстве проверьте:
+   - новую вкладку;
+   - кнопку и портретный интерфейс DevTools;
+   - порядок и прокрутку вкладок;
+   - свайп по панели;
+   - установку и автоматическое включение расширения;
+   - отсутствие повторного account notice.
+
+Если структура не изменилась, новая версия применяется автоматически. Если
+fingerprint перестал совпадать, исправляется только соответствующая точка
+поиска/инъекции. Обфусцированные имена вроде `hu6`, `uor` или `t4h` в патчах не
+закреплены и при обычной минификации могут меняться без доработки проекта.
+
+Успешная сборка APK ещё не доказывает корректность runtime UX. Финальной
+проверкой считается реальный сценарий на ARM64-телефоне.
+
+## ReVanced Manager
+
+ReVanced Manager запускает тот же Patcher непосредственно на Android: загружает
+`.rvp`, выбирает патчи, декодирует APK, применяет изменения, собирает результат
+и подписывает его своим постоянным keystore. Компьютер для архитектуры ReVanced
+не обязателен.
+
+Текущий Edge ReVanced пока официально поддерживает PC pipeline. Причина не в
+smali/Kotlin-патчах, а в DevTools frontend: он добавляет сотни файлов в APK и
+требует полной перекомпиляции ресурсов Edge с Android SDK 37 framework и
+совместимым `aapt2`. `patch.ps1` передаёт эти зависимости явно, а обычный Manager
+не получает их из этого репозитория. До переноса framework/aapt2 contract внутрь
+самодостаточного Android flow применение через Manager нельзя считать
+поддержанным.
+
+## Лицензия
+
+GPLv3. См. [LICENSE](LICENSE).
