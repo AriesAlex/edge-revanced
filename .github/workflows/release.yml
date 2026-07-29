@@ -211,6 +211,7 @@ jobs:
           $tag = '${{ needs.discover.outputs.release_tag }}'
           $apk = "artifacts\edge-revanced-$version.apk"
           $rvp = "artifacts\edge-revanced-$version.rvp"
+          $patchCommit = '${{ github.sha }}'
           $notes = @"
           Автоматическая сборка Edge ReVanced на основе Microsoft Edge Canary $version.
 
@@ -218,13 +219,17 @@ jobs:
           - Архитектура: arm64-v8a
           - SHA-256 исходного APK: ${{ steps.source.outputs.source_sha256 }}
           - Исходная подпись Microsoft проверена
-          - Commit патчей: ${{ github.sha }}
+          - Commit патчей: $patchCommit
           - Workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           "@
           $notesPath = Join-Path $env:RUNNER_TEMP 'edge-revanced-release.md'
           Set-Content -LiteralPath $notesPath -Value $notes -Encoding utf8
 
           if ('${{ needs.discover.outputs.release_exists }}' -eq 'true') {
+            gh api --method PATCH `
+              "repos/$env:GITHUB_REPOSITORY/git/refs/tags/$tag" `
+              -f "sha=$patchCommit" `
+              -F 'force=true' | Out-Null
             gh release upload $tag $apk $rvp --clobber
             gh release edit $tag `
               --title "Edge ReVanced $version" `
@@ -232,7 +237,7 @@ jobs:
           }
           else {
             gh release create $tag $apk $rvp `
-              --target '${{ github.sha }}' `
+              --target $patchCommit `
               --title "Edge ReVanced $version" `
               --notes-file $notesPath
           }
