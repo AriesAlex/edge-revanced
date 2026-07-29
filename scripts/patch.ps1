@@ -116,6 +116,7 @@ try {
     $env:EDGE_REVANCED_ANDROID_FRAMEWORK_DIRECTORY = Join-Path $temporaryFiles 'patcher'
 
     $selectedPatches = @(
+        'Брендинг Edge ReVanced'
         'Кнопка DevTools'
         'Своя новая вкладка'
         'Установка расширений из Chrome Web Store'

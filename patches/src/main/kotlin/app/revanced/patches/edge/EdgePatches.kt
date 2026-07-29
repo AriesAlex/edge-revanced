@@ -32,6 +32,9 @@ import java.util.zip.ZipInputStream
 
 private const val EDGE_CANARY_PACKAGE = "com.microsoft.emmx.canary"
 private const val EDGE_CANARY_SIDE_BY_SIDE_PACKAGE = "$EDGE_CANARY_PACKAGE.revanced"
+private const val EDGE_REVANCED_NAME = "Edge ReVanced"
+private const val EDGE_CANARY_ICON = "@mipmap/edge_app_icon_canary"
+private const val EDGE_STABLE_ICON = "@mipmap/edge_app_icon"
 private const val ANDROID_FRAMEWORK_APK_ENV = "EDGE_REVANCED_ANDROID_FRAMEWORK_APK"
 private const val ANDROID_FRAMEWORK_DIRECTORY_ENV = "EDGE_REVANCED_ANDROID_FRAMEWORK_DIRECTORY"
 private const val DEVTOOLS_OVERFLOW_ID = 42
@@ -93,6 +96,32 @@ private val androidFrameworkPatch = resourcePatch {
             ) != -1L
         ) {
             androidFrameworkApk.copyTo(installedFrameworkApk, overwrite = true)
+        }
+    }
+}
+
+@Suppress("unused")
+val edgeRevancedBrandingPatch = resourcePatch(
+    name = "Брендинг Edge ReVanced",
+    description = "Переименовывает приложение и заменяет Canary-иконку на обычную иконку Microsoft Edge.",
+) {
+    compatibleWith(EDGE_CANARY_PACKAGE)
+    dependsOn(androidFrameworkPatch)
+
+    apply {
+        document("AndroidManifest.xml").use { document ->
+            val applications = document.getElementsByTagName("application")
+            check(applications.length == 1) {
+                "Expected exactly one application element"
+            }
+            val application = applications.item(0) as Element
+            val sourceIcon = application.getAttribute("android:icon")
+            check(sourceIcon == EDGE_CANARY_ICON) {
+                "Unexpected Edge Canary application icon: $sourceIcon"
+            }
+
+            application.setAttribute("android:label", EDGE_REVANCED_NAME)
+            application.setAttribute("android:icon", EDGE_STABLE_ICON)
         }
     }
 }

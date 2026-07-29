@@ -3,6 +3,7 @@ public final class app/revanced/patches/edge/EdgePatchesKt {
 	public static final fun getCustomNewTabPatch ()Lapp/revanced/patcher/patch/Patch;
 	public static final fun getDevToolsMenuPatch ()Lapp/revanced/patcher/patch/Patch;
 	public static final fun getDismissMicrosoftAccountNoticePatch ()Lapp/revanced/patcher/patch/Patch;
+	public static final fun getEdgeRevancedBrandingPatch ()Lapp/revanced/patcher/patch/Patch;
 	public static final fun getSideBySideInstallPatch ()Lapp/revanced/patcher/patch/Patch;
 	public static final fun getSwipeToTabSwitcherPatch ()Lapp/revanced/patcher/patch/Patch;
 	public static final fun getTabSwitcherThumbReachPatch ()Lapp/revanced/patcher/patch/Patch;

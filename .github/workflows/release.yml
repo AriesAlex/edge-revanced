@@ -1,0 +1,243 @@
+name: Build Edge ReVanced APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+concurrency:
+  group: edge-revanced-release
+  cancel-in-progress: false
+
+env:
+  APKEEP_CACHE_KEY: apkeep-1.0.0-windows-x64
+  EDGE_SOURCE_CERT_SHA256: 01e1999710a82c2749b4d50c445dc85d670b6136089d0a766a73827c82a1eac9
+  EDGE_MOD_CERT_SHA256: 3a249aacb687501fb1955833949195a155f91377e240a1a449d943983deae7e2
+
+jobs:
+  discover:
+    runs-on: windows-latest
+    outputs:
+      release_exists: ${{ steps.release.outputs.release_exists }}
+      release_tag: ${{ steps.release.outputs.release_tag }}
+      should_build: ${{ steps.release.outputs.should_build }}
+      version: ${{ steps.release.outputs.version }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: oven-sh/setup-bun@v2
+
+      - uses: actions/cache@v5
+        with:
+          path: local/apkeep-1.0.0.exe
+          key: ${{ env.APKEEP_CACHE_KEY }}
+
+      - id: release
+        name: Discover latest Edge Canary release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $metadata = bun .\scripts\edge-canary.ts metadata | ConvertFrom-Json
+          $releaseTag = "edge-canary-$($metadata.version)"
+
+          gh release view $releaseTag *> $null
+          $releaseExists = $LASTEXITCODE -eq 0
+          $shouldBuild = '${{ github.event_name }}' -eq 'workflow_dispatch' -or -not $releaseExists
+
+          "version=$($metadata.version)" >> $env:GITHUB_OUTPUT
+          "release_tag=$releaseTag" >> $env:GITHUB_OUTPUT
+          "release_exists=$($releaseExists.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
+          "should_build=$($shouldBuild.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
+
+          if (-not $shouldBuild) {
+            "Edge Canary $($metadata.version) already has release $releaseTag; heavy build skipped." |
+              Tee-Object -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          }
+
+  build:
+    needs: discover
+    if: needs.discover.outputs.should_build == 'true'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: |
+            17
+            21
+          cache: gradle
+
+      - uses: oven-sh/setup-bun@v2
+
+      - uses: actions/cache@v5
+        with:
+          path: local/apkeep-1.0.0.exe
+          key: ${{ env.APKEEP_CACHE_KEY }}
+
+      - uses: actions/cache@v5
+        with:
+          path: patches/src/main/resources/edge-devtools-frontend.zip
+          key: edge-devtools-${{ runner.os }}-${{ hashFiles('scripts/build-devtools-frontend.ts', 'scripts/devtools-mobile.js') }}
+
+      - name: Install Android SDK 37
+        shell: pwsh
+        run: |
+          $sdkManager = Get-ChildItem `
+            -Path "$env:ANDROID_HOME\cmdline-tools\*\bin\sdkmanager.bat" |
+            Sort-Object FullName -Descending |
+            Select-Object -First 1
+          if (-not $sdkManager) {
+            throw 'Android sdkmanager was not found.'
+          }
+
+          & $sdkManager.FullName 'platforms;android-37' 'build-tools;37.0.0'
+          if ($LASTEXITCODE -ne 0) {
+            throw "Android SDK installation failed with exit code $LASTEXITCODE."
+          }
+
+      - name: Build patch bundle
+        shell: pwsh
+        run: .\scripts\build.ps1 -CpuCount ([Environment]::ProcessorCount)
+
+      - name: Download latest Edge Canary APK
+        shell: pwsh
+        run: |
+          bun .\scripts\edge-canary.ts download `
+            --output "local\edge-canary-${{ needs.discover.outputs.version }}.apk" `
+            --version "${{ needs.discover.outputs.version }}"
+
+      - id: source
+        name: Verify source APK
+        shell: pwsh
+        run: |
+          $version = '${{ needs.discover.outputs.version }}'
+          $apk = "local\edge-canary-$version.apk"
+          $aapt2 = "$env:ANDROID_HOME\build-tools\37.0.0\aapt2.exe"
+          $apksigner = "$env:ANDROID_HOME\build-tools\37.0.0\apksigner.bat"
+          $badging = & $aapt2 dump badging $apk
+          $package = [regex]::Match(
+            "$badging",
+            "package: name='([^']+)' versionCode='([^']+)' versionName='([^']+)'"
+          )
+          if (
+            -not $package.Success -or
+            $package.Groups[1].Value -ne 'com.microsoft.emmx.canary' -or
+            $package.Groups[3].Value -ne $version
+          ) {
+            throw "Unexpected source APK identity: $($package.Value)"
+          }
+          if ("$badging" -notmatch "native-code: 'arm64-v8a'") {
+            throw 'Source APK is not the monolithic ARM64 variant.'
+          }
+
+          $certificates = & $apksigner verify --print-certs $apk 2>&1
+          if (
+            "$certificates" -notmatch
+            [regex]::Escape("certificate SHA-256 digest: $env:EDGE_SOURCE_CERT_SHA256")
+          ) {
+            throw 'Source APK is not signed by the expected Microsoft certificate.'
+          }
+
+          $sourceSha256 = (Get-FileHash -Algorithm SHA256 -LiteralPath $apk).Hash.ToLowerInvariant()
+          "source_sha256=$sourceSha256" >> $env:GITHUB_OUTPUT
+
+      - name: Patch Edge Canary
+        shell: pwsh
+        run: |
+          $version = '${{ needs.discover.outputs.version }}'
+          New-Item -ItemType Directory -Force -Path artifacts | Out-Null
+          Copy-Item `
+            -LiteralPath patches\build\libs\patches-0.1.0.rvp `
+            -Destination "artifacts\edge-revanced-$version.rvp"
+          .\scripts\patch.ps1 `
+            -Apk "local\edge-canary-$version.apk" `
+            -Output "artifacts\edge-revanced-$version.apk" `
+            -Rvp "artifacts\edge-revanced-$version.rvp" `
+            -CpuCount ([Environment]::ProcessorCount)
+
+      - name: Verify patched APK
+        shell: pwsh
+        run: |
+          $version = '${{ needs.discover.outputs.version }}'
+          $apk = "artifacts\edge-revanced-$version.apk"
+          $aapt2 = "$env:ANDROID_HOME\build-tools\37.0.0\aapt2.exe"
+          $apksigner = "$env:ANDROID_HOME\build-tools\37.0.0\apksigner.bat"
+          $badging = & $aapt2 dump badging $apk
+          if (
+            "$badging" -notmatch
+            "package: name='com\.microsoft\.emmx\.canary'.*versionName='$([regex]::Escape($version))'"
+          ) {
+            throw 'Patched APK package or version does not match the source.'
+          }
+          if ("$badging" -notmatch "application-label:'Edge ReVanced'") {
+            throw 'Patched APK does not have the Edge ReVanced launcher title.'
+          }
+
+          $manifest = & $aapt2 dump xmltree $apk --file AndroidManifest.xml
+          $iconId = [regex]::Match(
+            "$manifest",
+            'android:icon\(0x01010002\)=@(0x[0-9a-f]+)'
+          ).Groups[1].Value
+          if (-not $iconId) {
+            throw 'Patched APK application icon resource was not found.'
+          }
+          $resources = & $aapt2 dump resources $apk
+          if ("$resources" -notmatch "resource $iconId mipmap/edge_app_icon") {
+            throw 'Patched APK does not use the stable Edge launcher icon.'
+          }
+
+          $certificates = & $apksigner verify --print-certs $apk 2>&1
+          if (
+            "$certificates" -notmatch
+            [regex]::Escape("certificate SHA-256 digest: $env:EDGE_MOD_CERT_SHA256")
+          ) {
+            throw 'Patched APK is not signed by the persistent Edge ReVanced key.'
+          }
+
+      - uses: actions/upload-artifact@v6
+        with:
+          name: edge-revanced-${{ needs.discover.outputs.version }}
+          path: artifacts/*
+          if-no-files-found: error
+
+      - name: Publish GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $version = '${{ needs.discover.outputs.version }}'
+          $tag = '${{ needs.discover.outputs.release_tag }}'
+          $apk = "artifacts\edge-revanced-$version.apk"
+          $rvp = "artifacts\edge-revanced-$version.rvp"
+          $notes = @"
+          Автоматическая сборка Edge ReVanced на основе Microsoft Edge Canary $version.
+
+          - Исходный пакет: com.microsoft.emmx.canary
+          - Архитектура: arm64-v8a
+          - SHA-256 исходного APK: ${{ steps.source.outputs.source_sha256 }}
+          - Исходная подпись Microsoft проверена
+          - Commit патчей: ${{ github.sha }}
+          - Workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          "@
+          $notesPath = Join-Path $env:RUNNER_TEMP 'edge-revanced-release.md'
+          Set-Content -LiteralPath $notesPath -Value $notes -Encoding utf8
+
+          if ('${{ needs.discover.outputs.release_exists }}' -eq 'true') {
+            gh release upload $tag $apk $rvp --clobber
+            gh release edit $tag `
+              --title "Edge ReVanced $version" `
+              --notes-file $notesPath
+          }
+          else {
+            gh release create $tag $apk $rvp `
+              --target '${{ github.sha }}' `
+              --title "Edge ReVanced $version" `
+              --notes-file $notesPath
+          }

@@ -16,6 +16,8 @@ ReVanced-патчи для Microsoft Edge Canary на Android с упором н
 
 ## Возможности
 
+- **Брендинг Edge ReVanced** — launcher называется `Edge ReVanced` и использует
+  обычную adaptive-иконку стабильного Microsoft Edge вместо Canary-иконки.
 - **Своя новая вкладка** — открывает настраиваемый HTTP/HTTPS-адрес вместо
   встроенной NTP. По умолчанию используется `http://tabpage.ariex.ru`.
 - **Мобильные DevTools** — добавляет штатный пункт «Средства разработчика» в
@@ -67,6 +69,8 @@ adb install -r
   frontend. Режим `-CliOnly` получает только CLI для применения готового `.rvp`.
 - `scripts/build.ps1` собирает Android-совместимый `.rvp`.
 - `scripts/patch.ps1` применяет все патчи, перепаковывает APK и подписывает его.
+- `scripts/edge-canary.ts` находит и скачивает последний монолитный ARM64 APK
+  Canary для автоматической сборки.
 
 `.rvp` — это JAR-контейнер с manifest metadata, JVM-классами, их Android DEX
 версией, runtime extension и ресурсами патчей. Сам Edge внутрь `.rvp` не входит.
@@ -179,6 +183,26 @@ fingerprint перестал совпадать, исправляется тол
 
 Успешная сборка APK ещё не доказывает корректность runtime UX. Финальной
 проверкой считается реальный сценарий на ARM64-телефоне.
+
+## GitHub Actions и Releases
+
+Workflow `Build Edge ReVanced APK` можно в любой момент запустить кнопкой
+**Run workflow**. Он:
+
+1. узнаёт последнюю доступную версию Edge Canary;
+2. скачивает монолитный `arm64-v8a` APK;
+3. проверяет package name, ABI и исходную подпись Microsoft;
+4. собирает `.rvp`, применяет все патчи и подписывает APK постоянным
+   `edge-mod.keystore`;
+5. проверяет имя, иконку, версию и подпись результата;
+6. публикует APK и `.rvp` как Actions artifact и в GitHub Release
+   `Edge ReVanced <версия Canary>`.
+
+Push в `main` выполняет только дешёвое определение последней версии. Тяжёлая
+сборка запускается автоматически лишь тогда, когда Release для этой версии
+Canary ещё не существует. Ручной запуск всегда пересобирает последнюю версию и
+обновляет assets соответствующего Release, поэтому README-only push не тратит
+время на повторную перепаковку 250-МБ APK.
 
 ## ReVanced Manager
 
