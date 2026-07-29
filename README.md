@@ -70,7 +70,8 @@ adb install -r
 - `scripts/build.ps1` собирает Android-совместимый `.rvp`.
 - `scripts/patch.ps1` применяет все патчи, перепаковывает APK и подписывает его.
 - `scripts/edge-canary.ts` находит и скачивает последний монолитный ARM64 APK
-  Canary для автоматической сборки.
+  Canary для автоматической сборки через APKPure API по открытому контракту
+  MIT-проекта [EFF apkeep](https://github.com/EFForg/apkeep).
 
 `.rvp` — это JAR-контейнер с manifest metadata, JVM-классами, их Android DEX
 версией, runtime extension и ресурсами патчей. Сам Edge внутрь `.rvp` не входит.

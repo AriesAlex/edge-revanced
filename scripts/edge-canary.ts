@@ -1,17 +1,20 @@
-import { createHash } from "node:crypto";
-import { mkdir, readdir, rename, rm, stat } from "node:fs/promises";
-import { dirname, join, resolve } from "node:path";
+import { mkdir, rename, rm } from "node:fs/promises";
+import { dirname, resolve } from "node:path";
 
 const PACKAGE_NAME = "com.microsoft.emmx.canary";
 const ARCHITECTURE = "arm64-v8a";
-const APKEEP_VERSION = "1.0.0";
-const APKEEP_SHA256 =
-    "9e321bab9fcc6bab6f6a779ae21d3611dfe6bf3bbecc13ffc9e57aa2db044e7f";
-const APKEEP_URL =
-    `https://github.com/EFForg/apkeep/releases/download/${APKEEP_VERSION}/` +
-    "apkeep-x86_64-pc-windows-msvc.exe";
-const projectRoot = resolve(import.meta.dir, "..");
-const apkeepPath = join(projectRoot, "local", `apkeep-${APKEEP_VERSION}.exe`);
+// Public APKPure protocol used by EFF's MIT-licensed apkeep downloader.
+const APKPURE_VERSIONS_URL =
+    "https://api.pureapk.com/m/v3/cms/app_version" +
+    `?hl=en-US&package_name=${PACKAGE_NAME}`;
+const APKPURE_HEADERS = {
+    "x-cv": "3172501",
+    "x-sv": "29",
+    "x-abis": ARCHITECTURE,
+    "x-gp": "1",
+};
+const APK_DOWNLOAD_PATTERN =
+    /(X?APKJ)..(https?:\/\/[-a-zA-Z0-9@:%._+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b[-a-zA-Z0-9()@:%_+.~#?&/=]*)/s;
 
 type Metadata = {
     packageName: string;
@@ -27,67 +30,9 @@ function usage(): never {
     );
 }
 
-async function sha256(path: string): Promise<string> {
-    const contents = await Bun.file(path).arrayBuffer();
-    return createHash("sha256").update(new Uint8Array(contents)).digest("hex");
-}
-
-async function fileExists(path: string): Promise<boolean> {
-    try {
-        return (await stat(path)).isFile();
-    } catch {
-        return false;
-    }
-}
-
-async function ensureApkeep(): Promise<void> {
-    if (await fileExists(apkeepPath)) {
-        if ((await sha256(apkeepPath)) === APKEEP_SHA256) {
-            return;
-        }
-        await rm(apkeepPath, { force: true });
-    }
-
-    await mkdir(dirname(apkeepPath), { recursive: true });
-    const temporaryPath = `${apkeepPath}.download`;
-    await rm(temporaryPath, { force: true });
-
-    try {
-        console.error(`Downloading and verifying apkeep ${APKEEP_VERSION}...`);
-        const response = await fetch(APKEEP_URL);
-        if (!response.ok) {
-            throw new Error(
-                `apkeep download failed with HTTP ${response.status}`,
-            );
-        }
-        await Bun.write(temporaryPath, await response.arrayBuffer());
-        const actualSha256 = await sha256(temporaryPath);
-        if (actualSha256 !== APKEEP_SHA256) {
-            throw new Error(`Unexpected apkeep SHA-256: ${actualSha256}`);
-        }
-        await rename(temporaryPath, apkeepPath);
-    } finally {
-        await rm(temporaryPath, { force: true });
-    }
-}
-
-async function runApkeep(args: string[]): Promise<string> {
-    await ensureApkeep();
-    const process = Bun.spawn([apkeepPath, ...args], {
-        stdout: "pipe",
-        stderr: "pipe",
-    });
-    const [stdout, stderr, exitCode] = await Promise.all([
-        new Response(process.stdout).text(),
-        new Response(process.stderr).text(),
-        process.exited,
-    ]);
-    if (exitCode !== 0) {
-        throw new Error(
-            `apkeep exited with code ${exitCode}: ${stderr.trim() || stdout.trim()}`,
-        );
-    }
-    return stdout;
+function getOption(name: string): string | undefined {
+    const index = Bun.argv.indexOf(name);
+    return index >= 0 ? Bun.argv[index + 1] : undefined;
 }
 
 function compareVersions(left: string, right: string): number {
@@ -106,93 +51,96 @@ function compareVersions(left: string, right: string): number {
     return 0;
 }
 
-async function getMetadata(): Promise<Metadata> {
-    const output = await runApkeep([
-        "-l",
-        "-a",
-        PACKAGE_NAME,
-        "-o",
-        `arch=${ARCHITECTURE}`,
-    ]);
-    const versions = Array.from(
-        new Set(output.match(/\b\d+(?:\.\d+){3}\b/g) ?? []),
-    ).sort(compareVersions);
-    const version = versions.at(-1);
-    if (!version) {
-        throw new Error("apkeep did not return an Edge Canary version");
+async function fetchVersions(): Promise<string> {
+    const response = await fetch(APKPURE_VERSIONS_URL, {
+        headers: APKPURE_HEADERS,
+    });
+    if (!response.ok) {
+        throw new Error(
+            `APKPure version lookup failed with HTTP ${response.status}`,
+        );
     }
 
+    return new TextDecoder().decode(await response.arrayBuffer());
+}
+
+function metadata(version: string): Metadata {
     return {
         packageName: PACKAGE_NAME,
         version,
         architecture: ARCHITECTURE,
-        source: "APKPure via apkeep",
+        source: "APKPure",
     };
 }
 
-function getOption(name: string): string | undefined {
-    const index = Bun.argv.indexOf(name);
-    return index >= 0 ? Bun.argv[index + 1] : undefined;
+function latestVersion(response: string): string {
+    const versions = Array.from(
+        new Set(response.match(/\b\d+(?:\.\d+){3}\b/g) ?? []),
+    ).sort(compareVersions);
+    const version = versions.at(-1);
+    if (!version) {
+        throw new Error("APKPure did not return an Edge Canary version");
+    }
+    return version;
+}
+
+function downloadUrl(response: string, version: string): string {
+    if (!/^\d+(?:\.\d+){3}$/.test(version)) {
+        throw new Error(`Invalid Edge Canary version: ${version}`);
+    }
+
+    const escapedVersion = version.replaceAll(".", "\\.");
+    const versionRecord = response.match(
+        new RegExp(`[^\\d]${escapedVersion}:(.+)`, "s"),
+    )?.[1];
+    if (!versionRecord) {
+        throw new Error(`Edge Canary ${version} is not available from APKPure`);
+    }
+
+    const match = versionRecord.match(APK_DOWNLOAD_PATTERN);
+    if (!match || match[1] !== "APKJ") {
+        throw new Error(
+            `APKPure did not return a monolithic APK for Edge Canary ${version}`,
+        );
+    }
+    return match[2];
 }
 
 async function download(
     outputPath: string,
     requestedVersion?: string,
 ): Promise<Metadata> {
-    if (
-        requestedVersion !== undefined &&
-        !/^\d+(?:\.\d+){3}$/.test(requestedVersion)
-    ) {
-        throw new Error(`Invalid Edge Canary version: ${requestedVersion}`);
-    }
-    const metadata = requestedVersion
-        ? {
-              packageName: PACKAGE_NAME,
-              version: requestedVersion,
-              architecture: ARCHITECTURE,
-              source: "APKPure via apkeep",
-          }
-        : await getMetadata();
+    const versionsResponse = await fetchVersions();
+    const version = requestedVersion ?? latestVersion(versionsResponse);
+    const url = downloadUrl(versionsResponse, version);
     const destination = resolve(outputPath);
-    const temporaryDirectory = join(
-        projectRoot,
-        "local",
-        `edge-canary-download-${crypto.randomUUID()}`,
-    );
-    await mkdir(temporaryDirectory, { recursive: true });
+    const temporaryPath = `${destination}.download`;
+    await mkdir(dirname(destination), { recursive: true });
+    await rm(temporaryPath, { force: true });
 
     try {
         console.error(
-            `Downloading ${PACKAGE_NAME} ${metadata.version} (${ARCHITECTURE})...`,
+            `Downloading ${PACKAGE_NAME} ${version} (${ARCHITECTURE})...`,
         );
-        await runApkeep([
-            "-a",
-            `${PACKAGE_NAME}@${metadata.version}`,
-            "-o",
-            `arch=${ARCHITECTURE}`,
-            temporaryDirectory,
-        ]);
-        const apkFiles = (await readdir(temporaryDirectory)).filter((name) =>
-            name.toLowerCase().endsWith(".apk"),
-        );
-        if (apkFiles.length !== 1) {
+        const response = await fetch(url);
+        if (!response.ok) {
             throw new Error(
-                `Expected one downloaded APK, found ${apkFiles.length}`,
+                `Edge Canary download failed with HTTP ${response.status}`,
             );
         }
-
-        await mkdir(dirname(destination), { recursive: true });
+        await Bun.write(temporaryPath, response);
         await rm(destination, { force: true });
-        await rename(join(temporaryDirectory, apkFiles[0]), destination);
-        return metadata;
+        await rename(temporaryPath, destination);
+        return metadata(version);
     } finally {
-        await rm(temporaryDirectory, { recursive: true, force: true });
+        await rm(temporaryPath, { force: true });
     }
 }
 
 const command = Bun.argv[2];
 if (command === "metadata") {
-    console.log(JSON.stringify(await getMetadata()));
+    const response = await fetchVersions();
+    console.log(JSON.stringify(metadata(latestVersion(response))));
 } else if (command === "download") {
     const output = getOption("--output") ?? usage();
     console.log(JSON.stringify(await download(output, getOption("--version"))));
