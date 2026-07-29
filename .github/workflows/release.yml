@@ -234,6 +234,12 @@ jobs:
             gh release edit $tag `
               --title "Edge ReVanced $version" `
               --notes-file $notesPath
+            $releaseId = gh api `
+              "repos/$env:GITHUB_REPOSITORY/releases/tags/$tag" `
+              --jq '.id'
+            gh api --method PATCH `
+              "repos/$env:GITHUB_REPOSITORY/releases/$releaseId" `
+              -f "target_commitish=$patchCommit" | Out-Null
           }
           else {
             gh release create $tag $apk $rvp `
