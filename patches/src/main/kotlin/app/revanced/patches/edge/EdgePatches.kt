@@ -1,5 +1,6 @@
 package app.revanced.patches.edge
 
+import app.revanced.patcher.accessFlags
 import app.revanced.patcher.custom
 import app.revanced.patcher.definingClass
 import app.revanced.patcher.extensions.ExternalLabel
@@ -20,6 +21,7 @@ import app.revanced.patcher.patch.resourcePatch
 import app.revanced.patcher.patch.stringOption
 import app.revanced.patcher.returnType
 import app.revanced.patcher.strings
+import com.android.tools.smali.dexlib2.AccessFlags
 import com.android.tools.smali.dexlib2.Opcode
 import com.android.tools.smali.dexlib2.builder.MutableMethodImplementation
 import com.android.tools.smali.dexlib2.iface.instruction.FiveRegisterInstruction
@@ -306,51 +308,18 @@ val customNewTabPatch = bytecodePatch(
 
     apply {
         val newTabUrlSetter = firstMethodDeclaratively {
+            accessFlags(AccessFlags.PUBLIC, AccessFlags.STATIC)
             returnType("V")
             parameterTypes("Ljava/lang/String;")
             strings("chrome-native://newtab/")
         }
-        val nativeNewTabUrlField = newTabUrlSetter.instructions
-            .asSequence()
-            .filter { it.opcode == Opcode.SPUT_OBJECT }
-            .mapNotNull { it.fieldReference }
-            .firstOrNull { reference ->
-                reference.type == "Ljava/lang/String;"
-            }
-            ?: error("Could not identify the native new-tab URL field")
-        val urlMapper = firstMethodDeclaratively {
-            returnType("Ljava/lang/String;")
-            parameterTypes("Ljava/lang/String;")
-            custom {
-                val candidateInstructions =
-                    implementation?.instructions ?: return@custom false
-                immutableClassDef.fields.count {
-                    it.type == "Ljava/util/HashMap;"
-                } == 1 &&
-                    candidateInstructions.any { instruction ->
-                        instruction.methodReference?.let { reference ->
-                            reference.definingClass == "Ljava/util/HashMap;" &&
-                                reference.name == "get" &&
-                                reference.parameterTypes ==
-                                    listOf("Ljava/lang/Object;") &&
-                                reference.returnType == "Ljava/lang/Object;"
-                        } == true
-                    }
-            }
-        }
         val escapedUrl = newTabUrl!!.toSmaliString()
 
-        urlMapper.addInstructionsWithLabels(
+        newTabUrlSetter.addInstructions(
             0,
             """
-                sget-object v0, ${nativeNewTabUrlField.definingClass}->${nativeNewTabUrlField.name}:${nativeNewTabUrlField.type}
-                invoke-virtual { v0, p1 }, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
-                move-result v0
-                if-eqz v0, :edge_ntp_original
-                const-string p1, "$escapedUrl"
-                return-object p1
+                const-string p0, "$escapedUrl"
             """,
-            ExternalLabel("edge_ntp_original", urlMapper.getInstruction(0)),
         )
     }
 }

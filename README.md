@@ -69,6 +69,8 @@ adb install -r
   frontend. Режим `-CliOnly` получает только CLI для применения готового `.rvp`.
 - `scripts/build.ps1` собирает Android-совместимый `.rvp`.
 - `scripts/patch.ps1` применяет все патчи, перепаковывает APK и подписывает его.
+- `scripts/verify-patched-apk.ps1` проверяет, что адрес новой вкладки попал
+  именно в штатный Chromium setter и что его DEX-регистры корректны.
 - `scripts/edge-canary.ts` находит и скачивает последний монолитный ARM64 APK
   Canary для автоматической сборки через APKPure API по открытому контракту
   MIT-проекта [EFF apkeep](https://github.com/EFForg/apkeep).
@@ -168,8 +170,9 @@ ReVanced обновляются через `adb install -r` без удален�
 1. Скачайте чистый монолитный `arm64-v8a` APK новой Canary.
 2. Запустите тот же `scripts/patch.ps1` без изменения номера версии в коде.
 3. Убедитесь, что все пользовательские патчи завершились с `succeeded`.
-4. Установите APK через `adb install -r`.
-5. На настоящем ARM64-устройстве проверьте:
+4. Запустите `scripts/verify-patched-apk.ps1 -Apk <готовый APK>`.
+5. Установите APK через `adb install -r`.
+6. На настоящем ARM64-устройстве проверьте:
    - новую вкладку;
    - кнопку и портретный интерфейс DevTools;
    - порядок и прокрутку вкладок;
@@ -198,7 +201,7 @@ Workflow `Build Edge ReVanced APK` можно в любой момент зап�
 3. проверяет package name, ABI и исходную подпись Microsoft;
 4. собирает `.rvp`, применяет все патчи и подписывает APK постоянным
    `edge-mod.keystore`;
-5. проверяет имя, иконку, версию и подпись результата;
+5. проверяет имя, иконку, версию, подпись и DEX-контракт новой вкладки;
 6. публикует APK и `.rvp` как Actions artifact и в GitHub Release
    `Edge ReVanced <версия Canary>`.
 

@@ -162,6 +162,8 @@ jobs:
         run: |
           $version = '${{ needs.discover.outputs.version }}'
           $apk = "artifacts\edge-revanced-$version.apk"
+          .\scripts\verify-patched-apk.ps1 -Apk $apk
+
           $aapt2 = "$env:ANDROID_HOME\build-tools\37.0.0\aapt2.exe"
           $apksigner = "$env:ANDROID_HOME\build-tools\37.0.0\apksigner.bat"
           $badging = & $aapt2 dump badging $apk
