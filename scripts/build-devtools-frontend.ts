@@ -4,34 +4,32 @@ import {
     access,
     copyFile,
     mkdir,
-    mkdtemp,
     readFile,
     rename,
     rm,
     writeFile,
 } from "node:fs/promises";
-import { createServer } from "node:net";
-import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 
 const chromiumVersion = "152.0.7966.0";
 const devToolsRevision = "859710d4ad2fa4c309dafc1fcf1c2a78b2d94499";
-const chromeArchiveUrl =
-    `https://storage.googleapis.com/chrome-for-testing-public/` +
-    `${chromiumVersion}/win64/chrome-headless-shell-win64.zip`;
-const expectedChromeArchiveBytes = 119_410_885;
-const expectedChromeArchiveSha256 =
-    "9ed80c81260184e6f2a8d8c7d2ea5c95fa318518177014b320a98945d1c0b654";
-const expectedChromeExecutableSha256 =
-    "0864d0ae21e1a102ec63b159519316bc386c9672e49572b23cbb715afe6aee50";
-const russianLocaleUrl =
+const devToolsFrontendBaseUrl =
     `https://chrome-devtools-frontend.appspot.com/serve_file/` +
-    `@${devToolsRevision}/core/i18n/locales/ru.json`;
+    `@${devToolsRevision}/`;
+const russianLocaleUrl =
+    `${devToolsFrontendBaseUrl}core/i18n/locales/ru.json`;
 const expectedRussianLocaleSha256 =
     "5a108065f2d36aa766dea673ee2bd2b7d83d3b8df340fdab221c74fdd732eca8";
+const licenseUrl =
+    `https://raw.githubusercontent.com/ChromeDevTools/devtools-frontend/` +
+    `${devToolsRevision}/LICENSE`;
+const expectedLicenseSha256 =
+    "ff11d445fb41a1087c7630e120ab15f1a2cb67c1b707173cb494141805fca35e";
 const minimumFrontendFiles = 250;
-const fetchConcurrency = 24;
+const fetchConcurrency = 6;
+const fetchAttempts = 5;
+const fetchTimeoutMilliseconds = 15_000;
 const acornFrontendPath = "third_party/acorn/acorn.js";
 
 const projectRoot = resolve(import.meta.dir, "..");
@@ -45,18 +43,13 @@ const mobileFrontendScriptPath = join(
     "devtools-mobile.js",
 );
 const localDirectory = join(projectRoot, "local");
-const chromeArchivePath = join(
-    localDirectory,
-    `chrome-headless-shell-${chromiumVersion}-win64.zip`,
-);
-const chromeDirectory = join(
-    localDirectory,
-    `chrome-headless-shell-${chromiumVersion}-extracted`,
-);
-const chromeExecutable = join(chromeDirectory, "chrome-headless-shell.exe");
 const russianLocalePath = join(
     localDirectory,
     `chrome-devtools-frontend-${devToolsRevision}-ru.json`,
+);
+const licensePath = join(
+    localDirectory,
+    `chrome-devtools-frontend-${devToolsRevision}-LICENSE`,
 );
 const stagingDirectory = join(
     localDirectory,
@@ -155,94 +148,17 @@ async function verifyFile(
     return (await sha256(path)) === expectedSha256;
 }
 
-async function ensureChromeArchive(): Promise<void> {
-    if (
-        await verifyFile(
-            chromeArchivePath,
-            expectedChromeArchiveSha256,
-            expectedChromeArchiveBytes,
-        )
-    ) {
+async function ensurePinnedFile(
+    path: string,
+    url: string,
+    expectedSha256: string,
+): Promise<void> {
+    if (await verifyFile(path, expectedSha256)) {
         return;
     }
 
     await mkdir(localDirectory, { recursive: true });
-    const downloadPath = `${chromeArchivePath}.download`;
-    assertInside(downloadPath, localDirectory);
-    await rm(downloadPath, { force: true });
-
-    try {
-        await run([
-            "curl.exe",
-            "--fail",
-            "--location",
-            "--show-error",
-            "--output",
-            downloadPath,
-            chromeArchiveUrl,
-        ]);
-        if (
-            !(await verifyFile(
-                downloadPath,
-                expectedChromeArchiveSha256,
-                expectedChromeArchiveBytes,
-            ))
-        ) {
-            throw new Error(
-                `Unexpected SHA-256 or size for ${chromeArchiveUrl}`,
-            );
-        }
-        await rm(chromeArchivePath, { force: true });
-        await rename(downloadPath, chromeArchivePath);
-    } finally {
-        await rm(downloadPath, { force: true });
-    }
-}
-
-async function ensureChrome(): Promise<void> {
-    await ensureChromeArchive();
-    if (
-        await verifyFile(
-            chromeExecutable,
-            expectedChromeExecutableSha256,
-        )
-    ) {
-        return;
-    }
-
-    assertInside(chromeDirectory, localDirectory);
-    await rm(chromeDirectory, { recursive: true, force: true });
-    await mkdir(chromeDirectory, { recursive: true });
-    await run([
-        "tar",
-        "-xf",
-        chromeArchivePath,
-        "-C",
-        chromeDirectory,
-        "--strip-components=1",
-    ]);
-
-    if (
-        !(await verifyFile(
-            chromeExecutable,
-            expectedChromeExecutableSha256,
-        ))
-    ) {
-        throw new Error(`Unexpected Chrome executable: ${chromeExecutable}`);
-    }
-}
-
-async function ensureRussianLocale(): Promise<void> {
-    if (
-        await verifyFile(
-            russianLocalePath,
-            expectedRussianLocaleSha256,
-        )
-    ) {
-        return;
-    }
-
-    const downloadPath = `${russianLocalePath}.download`;
+    const downloadPath = `${path}.download`;
     assertInside(downloadPath, localDirectory);
     await rm(downloadPath, { force: true });
     try {
@@ -250,76 +166,22 @@ async function ensureRussianLocale(): Promise<void> {
             "curl.exe",
             "--fail",
             "--location",
+            "--retry",
+            "5",
+            "--retry-all-errors",
             "--show-error",
             "--output",
             downloadPath,
-            russianLocaleUrl,
+            url,
         ]);
-        if (
-            !(await verifyFile(
-                downloadPath,
-                expectedRussianLocaleSha256,
-            ))
-        ) {
-            throw new Error(
-                `Unexpected SHA-256 for ${russianLocaleUrl}`,
-            );
+        if (!(await verifyFile(downloadPath, expectedSha256))) {
+            throw new Error(`Unexpected SHA-256 for ${url}`);
         }
-        await rm(russianLocalePath, { force: true });
-        await rename(downloadPath, russianLocalePath);
+        await rm(path, { force: true });
+        await rename(downloadPath, path);
     } finally {
         await rm(downloadPath, { force: true });
     }
-}
-
-async function findFreePort(): Promise<number> {
-    return new Promise((resolvePort, reject) => {
-        const server = createServer();
-        server.once("error", reject);
-        server.listen(0, "127.0.0.1", () => {
-            const address = server.address();
-            if (address === null || typeof address === "string") {
-                server.close();
-                reject(new Error("Could not reserve a loopback port"));
-                return;
-            }
-            const { port } = address;
-            server.close((error) => {
-                if (error) {
-                    reject(error);
-                } else {
-                    resolvePort(port);
-                }
-            });
-        });
-    });
-}
-
-async function waitForDevToolsServer(baseUrl: string): Promise<void> {
-    let lastError: unknown;
-    for (let attempt = 0; attempt < 100; attempt++) {
-        try {
-            const response = await fetch(`${baseUrl}json/version`);
-            if (response.ok) {
-                const version = await response.json() as { Browser?: string };
-                if (
-                    version.Browser ===
-                    `HeadlessChrome/${chromiumVersion}`
-                ) {
-                    return;
-                }
-                throw new Error(
-                    `Unexpected browser version: ${version.Browser ?? ""}`,
-                );
-            }
-        } catch (error) {
-            lastError = error;
-        }
-        await Bun.sleep(100);
-    }
-    throw new Error(
-        `Chrome DevTools server did not start: ${String(lastError)}`,
-    );
 }
 
 function normalizeFrontendPath(
@@ -561,6 +423,57 @@ async function mapConcurrent<T, R>(
     return results;
 }
 
+async function fetchFrontendBytes(
+    path: string,
+    frontendBaseUrl: string,
+): Promise<Uint8Array> {
+    const url = new URL(path, frontendBaseUrl);
+    let lastError: unknown;
+
+    for (let attempt = 1; attempt <= fetchAttempts; attempt++) {
+        let response: Response;
+        try {
+            response = await fetch(url, {
+                signal: AbortSignal.timeout(fetchTimeoutMilliseconds),
+            });
+        } catch (error) {
+            lastError = error;
+            if (attempt < fetchAttempts) {
+                await Bun.sleep(250 * 2 ** (attempt - 1));
+                continue;
+            }
+            break;
+        }
+
+        if (response.ok) {
+            const bytes = new Uint8Array(await response.arrayBuffer());
+            if (bytes.length === 0) {
+                throw new Error(
+                    `DevTools frontend returned an empty body for ${path}`,
+                );
+            }
+            return bytes;
+        }
+
+        const error = new Error(
+            `DevTools frontend returned ${response.status} for ${path}`,
+        );
+        if (response.status !== 429 && response.status < 500) {
+            throw error;
+        }
+        lastError = error;
+        await response.body?.cancel();
+        if (attempt < fetchAttempts) {
+            await Bun.sleep(250 * 2 ** (attempt - 1));
+        }
+    }
+
+    throw new Error(
+        `Could not fetch ${path} after ${fetchAttempts} attempts: ` +
+            String(lastError),
+    );
+}
+
 async function fetchAsset(
     path: string,
     frontendBaseUrl: string,
@@ -569,17 +482,7 @@ async function fetchAsset(
     bytes: Uint8Array;
     dependencies: Set<string>;
 }> {
-    const response = await fetch(new URL(path, frontendBaseUrl));
-    if (!response.ok) {
-        throw new Error(`DevTools frontend returned ${response.status} for ${path}`);
-    }
-
-    const bytes = new Uint8Array(await response.arrayBuffer());
-    // Chrome's DevTools data source returns an empty 200 response for an
-    // unknown resource, so an empty body is equivalent to a missing file.
-    if (bytes.length === 0) {
-        throw new Error(`DevTools frontend returned an empty body for ${path}`);
-    }
+    const bytes = await fetchFrontendBytes(path, frontendBaseUrl);
     return {
         path,
         bytes,
@@ -594,18 +497,10 @@ async function fetchAsset(
 async function initializeJavaScriptParser(
     frontendBaseUrl: string,
 ): Promise<void> {
-    const response = await fetch(new URL(acornFrontendPath, frontendBaseUrl));
-    if (!response.ok) {
-        throw new Error(
-            `DevTools frontend returned ${response.status} for ${acornFrontendPath}`,
-        );
-    }
-    const bytes = new Uint8Array(await response.arrayBuffer());
-    if (bytes.length === 0) {
-        throw new Error(
-            `DevTools frontend returned an empty body for ${acornFrontendPath}`,
-        );
-    }
+    const bytes = await fetchFrontendBytes(
+        acornFrontendPath,
+        frontendBaseUrl,
+    );
 
     const outputPath = join(
         stagingDirectory,
@@ -700,7 +595,7 @@ async function buildFrontend(frontendBaseUrl: string): Promise<number> {
 
     const licenseOutputPath = join(stagingDirectory, "LICENSE");
     await copyFile(
-        join(chromeDirectory, "LICENSE.headless_shell"),
+        licensePath,
         licenseOutputPath,
     );
     files++;
@@ -708,7 +603,8 @@ async function buildFrontend(frontendBaseUrl: string): Promise<number> {
     const manifest = {
         chromiumVersion,
         devToolsRevision,
-        chromeArchiveSha256: expectedChromeArchiveSha256,
+        frontendSource: devToolsFrontendBaseUrl,
+        licenseSha256: expectedLicenseSha256,
         frontendBuilderSha256: await sha256(frontendBuilderPath),
         mobileFrontendSha256: await sha256(mobileFrontendScriptPath),
         files: files + 1,
@@ -770,7 +666,8 @@ async function archiveIsComplete(): Promise<boolean> {
             ) &&
             manifest.chromiumVersion === chromiumVersion &&
             manifest.devToolsRevision === devToolsRevision &&
-            manifest.chromeArchiveSha256 === expectedChromeArchiveSha256 &&
+            manifest.frontendSource === devToolsFrontendBaseUrl &&
+            manifest.licenseSha256 === expectedLicenseSha256 &&
             manifest.frontendBuilderSha256 ===
                 await sha256(frontendBuilderPath) &&
             manifest.mobileFrontendSha256 ===
@@ -802,53 +699,21 @@ async function main(): Promise<void> {
     }
 
     await Promise.all([
-        ensureChrome(),
-        ensureRussianLocale(),
+        ensurePinnedFile(
+            russianLocalePath,
+            russianLocaleUrl,
+            expectedRussianLocaleSha256,
+        ),
+        ensurePinnedFile(
+            licensePath,
+            licenseUrl,
+            expectedLicenseSha256,
+        ),
     ]);
 
-    const port = await findFreePort();
-    const profileDirectory = await mkdtemp(
-        join(tmpdir(), "edge-revanced-devtools-"),
-    );
-    const chrome = Bun.spawn(
-        [
-            chromeExecutable,
-            "--headless",
-            `--remote-debugging-port=${port}`,
-            "--remote-debugging-address=127.0.0.1",
-            "--no-first-run",
-            "--disable-gpu",
-            `--user-data-dir=${profileDirectory}`,
-            "about:blank",
-        ],
-        {
-            stdout: "ignore",
-            stderr: "ignore",
-            windowsHide: true,
-        },
-    );
-
-    try {
-        await run(
-            [
-                "powershell.exe",
-                "-NoProfile",
-                "-Command",
-                `(Get-Process -Id ${chrome.pid}).PriorityClass = 'BelowNormal'`,
-            ],
-            { stdout: "ignore", stderr: "pipe" },
-        );
-        const baseUrl = `http://127.0.0.1:${port}/`;
-        await waitForDevToolsServer(baseUrl);
-        const files = await buildFrontend(`${baseUrl}devtools/`);
-        await createArchive();
-        console.log(`Bundled ${files} DevTools files: ${archivePath}`);
-    } finally {
-        chrome.kill();
-        await chrome.exited;
-        assertInside(profileDirectory, tmpdir());
-        await rm(profileDirectory, { recursive: true, force: true });
-    }
+    const files = await buildFrontend(devToolsFrontendBaseUrl);
+    await createArchive();
+    console.log(`Bundled ${files} DevTools files: ${archivePath}`);
 }
 
 await main();

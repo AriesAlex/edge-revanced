@@ -87,11 +87,17 @@ adb install -r
 .\scripts\build.ps1
 ```
 
-Bootstrap создаёт только ignored-артефакты в `local/` и воспроизводимо получает:
+Bootstrap создаёт только ignored-артефакты в `local/` и
+`patches/src/main/resources/` и воспроизводимо получает:
 
 - ReVanced CLI `6.0.0` / Patcher `22.0.0`;
 - официальный `revanced-patches-gradle-plugin` на зафиксированном commit;
-- Chromium DevTools frontend с русской и английской локалями.
+- Chromium DevTools frontend с русской и английской локалями напрямую из
+  официального `serve_file/@<revision>`.
+
+Frontend собирается в детерминированный ZIP с manifest и SHA-256 исходников.
+Повторный локальный запуск проверяет готовый архив и становится no-op, а GitHub
+Actions кеширует его по хешам builder/mobile-скриптов.
 
 ## Создание APK
 

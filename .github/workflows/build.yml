@@ -20,6 +20,11 @@ jobs:
 
       - uses: oven-sh/setup-bun@v2
 
+      - uses: actions/cache@v4
+        with:
+          path: patches/src/main/resources/edge-devtools-frontend.zip
+          key: edge-devtools-${{ runner.os }}-${{ hashFiles('scripts/build-devtools-frontend.ts', 'scripts/devtools-mobile.js') }}
+
       - name: Build Android patch bundle
         shell: pwsh
         run: .\scripts\build.ps1 -CpuCount 4
