@@ -713,32 +713,53 @@ val customNewTabPatch = bytecodePatch(
                 HOMEPAGE_LEGACY_CUSTOM_URL_KEY,
             )
         }
-        val customUrlKeyIndex = homepageCustomUrl.instructions.indexOfFirst {
-            it.stringReference?.string == HOMEPAGE_CUSTOM_URL_KEY
-        }.also { index ->
-            check(index >= 0) {
-                "Could not find Edge's custom homepage preference read"
+        val customUrlFactoryReferences = homepageCustomUrl.instructions
+            .mapNotNull { instruction ->
+                instruction.methodReference?.takeIf { reference ->
+                    instruction.opcode == Opcode.INVOKE_STATIC &&
+                        reference.definingClass == "Lorg/chromium/url/GURL;" &&
+                        reference.parameterTypes == listOf("Ljava/lang/String;") &&
+                        reference.returnType == "Lorg/chromium/url/GURL;"
+                }
             }
+            .distinctBy { reference ->
+                "${reference.definingClass}->${reference.name}" +
+                    "(${reference.parameterTypes.joinToString("")})" +
+                    reference.returnType
+            }
+        check(customUrlFactoryReferences.size == 1) {
+            "Could not uniquely identify Edge's GURL factory"
         }
-        val customUrlDefaultIndex = homepageCustomUrl.instructions
+        val customUrlFactory = customUrlFactoryReferences.single()
+        val customUrlFallbackIndexes = homepageCustomUrl.instructions
             .withIndex()
-            .drop(customUrlKeyIndex + 1)
-            .firstOrNull { (_, instruction) ->
-                instruction.opcode in setOf(
-                    Opcode.CONST_STRING,
-                    Opcode.CONST_STRING_JUMBO,
-                ) &&
-                    instruction.stringReference?.string == ""
+            .filter { (index, instruction) ->
+                instruction.opcode == Opcode.SGET_OBJECT &&
+                    instruction.fieldReference?.type ==
+                    "Lorg/chromium/url/GURL;" &&
+                    homepageCustomUrl.instructions
+                        .getOrNull(index + 1)
+                        ?.opcode == Opcode.RETURN_OBJECT
             }
-            ?.index
-            ?: error("Could not find Edge's custom homepage default")
-        val customUrlDefaultRegister =
+            .map { it.index }
+        check(customUrlFallbackIndexes.size == 1) {
+            "Could not uniquely identify Edge's default homepage GURL"
+        }
+        val customUrlFallbackIndex = customUrlFallbackIndexes.single()
+        val customUrlFallbackRegister =
             homepageCustomUrl.getInstruction<OneRegisterInstruction>(
-                customUrlDefaultIndex,
+                customUrlFallbackIndex,
             ).registerA
         homepageCustomUrl.replaceInstruction(
-            customUrlDefaultIndex,
-            """const-string v$customUrlDefaultRegister, "$escapedUrl"""",
+            customUrlFallbackIndex,
+            """const-string v$customUrlFallbackRegister, "$escapedUrl"""",
+        )
+        homepageCustomUrl.addInstructions(
+            customUrlFallbackIndex + 1,
+            """
+                invoke-static { v$customUrlFallbackRegister }, ${customUrlFactory.definingClass}->${customUrlFactory.name}(Ljava/lang/String;)Lorg/chromium/url/GURL;
+                move-result-object v$customUrlFallbackRegister
+            """,
         )
 
         val homepagePartnerEnabled = firstMethodDeclaratively {
@@ -826,7 +847,19 @@ val customNewTabPatch = bytecodePatch(
             "${findPreference.definingClass}->${findPreference.name}" +
                 "(${findPreference.parameterTypes.joinToString("")})" +
                 findPreference.returnType
-        val returnIndexes = newTabSettings.instructions
+        val newTabSettingsViewCreated = firstMethodDeclaratively {
+            definingClass(EDGE_NTP_SETTINGS_CLASS)
+            name("onViewCreated")
+            returnType("V")
+            parameterTypes(
+                "Landroid/view/View;",
+                "Landroid/os/Bundle;",
+            )
+        }
+        check(newTabSettingsViewCreated.implementation!!.registerCount == 3) {
+            "Unexpected Edge new-tab settings view register count"
+        }
+        val returnIndexes = newTabSettingsViewCreated.instructions
             .withIndex()
             .filter { (_, instruction) ->
                 instruction.opcode == Opcode.RETURN_VOID
@@ -836,20 +869,18 @@ val customNewTabPatch = bytecodePatch(
             "Expected one return from Edge's new-tab settings initializer"
         }
         val hidePreferencesInstructions = buildString {
-            hiddenNewTabPreferenceKeys.forEachIndexed { index, key ->
+            appendLine("const/4 p2, 0x0")
+            hiddenNewTabPreferenceKeys.forEach { key ->
                 appendLine("""const-string p1, "$key"""")
                 appendLine("invoke-virtual { p0, p1 }, $findPreferenceSmali")
                 appendLine("move-result-object p1")
-                appendLine("if-eqz p1, :edge_ntp_hidden_$index")
-                appendLine("const/4 p2, 0x0")
                 appendLine(
                     "invoke-virtual { p1, p2 }, " +
                         "Landroidx/preference/Preference;->setVisible(Z)V",
                 )
-                appendLine(":edge_ntp_hidden_$index")
             }
         }
-        newTabSettings.addInstructions(
+        newTabSettingsViewCreated.addInstructions(
             returnIndexes.single(),
             hidePreferencesInstructions,
         )

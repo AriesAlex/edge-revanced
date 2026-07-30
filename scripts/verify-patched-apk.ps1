@@ -129,7 +129,7 @@ function Assert-ValidRegisters {
 
     $instructions = [regex]::Matches(
         $Method.Text,
-        '(?m)^.*\|\d{4}:.*$'
+        '(?m)^.*\|[0-9a-f]{4}:.*$'
     )
     foreach ($register in [regex]::Matches(
         ($instructions.Value -join "`n"),
@@ -217,6 +217,43 @@ try {
     }
     Write-Verbose "Verified $($canaryIconEntries.Count) Canary icon resources."
 
+    $hiddenNewTabPreferenceKeys = @(
+        'news_feed_toggle'
+        'news_feed_category'
+        'region_and_language'
+        'news_source_perf'
+        'news_interest_perf'
+        'news_feed_footer'
+        'ntp_wallpaper_category'
+        'show_wallpaper_toggle'
+        'edit_wallpaper_pref'
+        'ntp_daily_image_pref'
+        'content_service_category'
+        'weather_widget_toggle'
+        'temperature_pref'
+        'weather_gps_detection_toggle'
+        'ntp_on_startup_category'
+        'browsing_options_pref'
+    )
+    $newTabSettingsDexFiles = @(
+        $dexFiles | Where-Object {
+            $text = [Text.Encoding]::UTF8.GetString(
+                [IO.File]::ReadAllBytes($_)
+            )
+            $text.Contains(
+                'Lorg/chromium/chrome/browser/edge_settings/edge_ntp/EdgeNTPSettings;'
+            ) -and
+                $text.Contains('news_feed_toggle') -and
+                $text.Contains('browsing_options_pref')
+        }
+    )
+    if ($newTabSettingsDexFiles.Count -ne 1) {
+        throw (
+            "Expected exactly one DEX containing EdgeNTPSettings, found " +
+            "$($newTabSettingsDexFiles.Count)."
+        )
+    }
+
     $newTabUrlDexFiles = @(
         $dexFiles | Where-Object {
             [Text.Encoding]::UTF8.GetString(
@@ -248,6 +285,81 @@ try {
 
     $homepageText = Get-DexDump -DexPath $newTabUrlDexFiles[0]
     Write-Verbose 'Loaded homepage preference DEX.'
+    $newTabSettingsText = Get-DexDump -DexPath $newTabSettingsDexFiles[0]
+    $newTabSettingsMarkers = @(
+        [regex]::Matches(
+            $newTabSettingsText,
+            [regex]::Escape(
+                'EdgeNTPSettings.onViewCreated:' +
+                    '(Landroid/view/View;Landroid/os/Bundle;)V'
+            )
+        )
+    )
+    if ($newTabSettingsMarkers.Count -ne 1) {
+        throw (
+            "Expected one EdgeNTPSettings.onViewCreated method, found " +
+            "$($newTabSettingsMarkers.Count)."
+        )
+    }
+    $newTabSettings = Get-ContainingMethod `
+        -Text $newTabSettingsText `
+        -MarkerIndex $newTabSettingsMarkers[0].Index
+    $newTabSettingsRegisters = Assert-ValidRegisters -Method $newTabSettings
+    if ($newTabSettingsRegisters -ne 3) {
+        throw 'EdgeNTPSettings.onViewCreated no longer has three parameter registers.'
+    }
+    $newTabSettingsInstructions = @(
+        [regex]::Matches(
+            $newTabSettings.Text,
+            '(?m)^.*\|[0-9a-f]{4}:.*$'
+        ).Value
+    )
+    if (
+        $newTabSettingsInstructions -match
+        '\|[0-9a-f]{4}:\s+(?:if-|goto)'
+    ) {
+        throw 'The injected new-tab settings flow must remain branch-free.'
+    }
+    foreach ($preferenceKey in $hiddenNewTabPreferenceKeys) {
+        $keyInstructionIndexes = @(
+            0..($newTabSettingsInstructions.Count - 1) | Where-Object {
+                $newTabSettingsInstructions[$_] -match
+                [regex]::Escape("`"$preferenceKey`"")
+            }
+        )
+        if ($keyInstructionIndexes.Count -ne 1) {
+            throw (
+                "Expected one injected lookup for $preferenceKey, found " +
+                "$($keyInstructionIndexes.Count)."
+            )
+        }
+        $keyInstructionIndex = $keyInstructionIndexes[0]
+        if ($keyInstructionIndex + 3 -ge $newTabSettingsInstructions.Count) {
+            throw "The injected visibility flow is incomplete for $preferenceKey."
+        }
+        if (
+            $newTabSettingsInstructions[$keyInstructionIndex + 1] -notmatch
+            'invoke-virtual\s+\{v0,\s+v1\},.*' +
+            '\(Ljava/lang/CharSequence;\)Landroidx/preference/Preference;'
+        ) {
+            throw "The injected preference lookup is invalid for $preferenceKey."
+        }
+        if (
+            $newTabSettingsInstructions[$keyInstructionIndex + 2] -notmatch
+            'move-result-object\s+v1'
+        ) {
+            throw "The injected preference result is invalid for $preferenceKey."
+        }
+        if (
+            $newTabSettingsInstructions[$keyInstructionIndex + 3] -notmatch
+            'invoke-virtual\s+\{v1,\s+v2\},\s+' +
+            'Landroidx/preference/Preference;\.setVisible:\(Z\)V'
+        ) {
+            throw "The injected visibility call is invalid for $preferenceKey."
+        }
+    }
+    Write-Verbose 'Verified branch-free Edge new-tab settings bytecode.'
+
     $escapedUrl = [regex]::Escape("`"$ExpectedNewTabUrl`"")
     $urlMarkers = @(
         [regex]::Matches(
@@ -285,13 +397,43 @@ try {
             throw "Homepage reader does not use $preferenceKey."
         }
     }
+    $homepageInstructions = @(
+        [regex]::Matches(
+            $homepageReader.Text,
+            '(?m)^.*\|[0-9a-f]{4}:.*$'
+        ).Value
+    )
+    $urlInstructionIndexes = @(
+        0..($homepageInstructions.Count - 1) | Where-Object {
+            $homepageInstructions[$_] -match $escapedUrl
+        }
+    )
+    if ($urlInstructionIndexes.Count -ne 1) {
+        throw 'Could not identify the default homepage URL flow.'
+    }
+    $urlInstructionIndex = $urlInstructionIndexes[0]
+    if ($urlInstructionIndex + 3 -ge $homepageInstructions.Count) {
+        throw 'The default homepage URL flow is incomplete.'
+    }
     if (
-        $homepageReader.Text -notmatch
-        "invoke-virtual\s+\{v\d+,\s+v\d+,\s+$urlRegister\},\s+" +
-        'Lorg/chromium/base/shared_preferences/SharedPreferencesManager;' +
-        '\.readString:\(Ljava/lang/String;Ljava/lang/String;\)Ljava/lang/String;'
+        $homepageInstructions[$urlInstructionIndex + 1] -notmatch
+        "invoke-static\s+\{$urlRegister\},\s+" +
+        'Lorg/chromium/url/GURL;\.[^:]+:' +
+        '\(Ljava/lang/String;\)Lorg/chromium/url/GURL;'
     ) {
-        throw 'The patched URL is not the default of the homepage preference.'
+        throw 'The default homepage URL is not converted to a GURL.'
+    }
+    if (
+        $homepageInstructions[$urlInstructionIndex + 2] -notmatch
+        "move-result-object\s+$urlRegister"
+    ) {
+        throw 'The default homepage GURL result is not retained.'
+    }
+    if (
+        $homepageInstructions[$urlInstructionIndex + 3] -notmatch
+        "return-object\s+$urlRegister"
+    ) {
+        throw 'The default homepage URL is not the reader fallback.'
     }
 
     $selectionMarkers = @(
@@ -447,6 +589,10 @@ try {
         "Verified preference-backed new tab: " +
         "$($homepageReader.Class)->$($homepageReader.Name), " +
         "$($newTabSetter.Class)->$($newTabSetter.Name)."
+    )
+    Write-Host (
+        "Verified branch-free new-tab settings for " +
+        "$($hiddenNewTabPreferenceKeys.Count) hidden preferences."
     )
     Write-Host (
         "Verified stable Edge icon in " +
