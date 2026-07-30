@@ -825,6 +825,69 @@ val tabSwitcherThumbReachPatch = bytecodePatch(
             """,
         )
 
+        val gridLayoutComplete = firstMethodDeclaratively {
+            definingClass(gridTabLayoutConstructor.definingClass)
+            returnType("V")
+            custom {
+                val candidateInstructions =
+                    implementation?.instructions ?: return@custom false
+                candidateInstructions.any { instruction ->
+                    instruction.opcode == Opcode.INVOKE_SUPER &&
+                        instruction.methodReference?.definingClass ==
+                        "Landroidx/recyclerview/widget/GridLayoutManager;"
+                }
+            }
+        }
+        val animationTargetCallback = gridLayoutComplete.instructions
+            .mapNotNull { instruction ->
+                instruction.methodReference?.takeIf { reference ->
+                    instruction.opcode == Opcode.INVOKE_VIRTUAL &&
+                        reference.definingClass !=
+                        "Landroidx/recyclerview/widget/GridLayoutManager;" &&
+                        reference.parameterTypes.isEmpty() &&
+                        reference.returnType == "V"
+                }
+            }
+            .singleOrNull()
+            ?: error("Could not uniquely identify the tab animation target callback")
+        val animationTargetCallbackMethod = firstMethodDeclaratively {
+            definingClass(animationTargetCallback.definingClass)
+            name(animationTargetCallback.name)
+            returnType(animationTargetCallback.returnType)
+            parameterTypes(
+                *animationTargetCallback.parameterTypes
+                    .map(CharSequence::toString)
+                    .toTypedArray(),
+            )
+        }
+        check(animationTargetCallbackMethod.implementation!!.registerCount > 1) {
+            "Tab animation target callback has no free local register"
+        }
+        val tabListField = animationTargetCallbackMethod.instructions
+            .mapNotNull { instruction ->
+                instruction.fieldReference?.takeIf { reference ->
+                    instruction.opcode == Opcode.IGET_OBJECT &&
+                        reference.type ==
+                        "Lorg/chromium/chrome/browser/tasks/tab_management/TabListRecyclerView;"
+                }
+            }
+            .singleOrNull()
+            ?: error("Could not uniquely identify the animation target tab list")
+        animationTargetCallbackMethod.addInstructionsWithLabels(
+            0,
+            """
+                iget-object v0, p0, ${tabListField.definingClass}->${tabListField.name}:${tabListField.type}
+                invoke-static { v0 }, $TAB_SWITCHER_EXTENSION_CLASS->prepareAnimationTarget(Ljava/lang/Object;)Z
+                move-result v0
+                if-eqz v0, :edge_tabs_animation_ready
+                return-void
+            """,
+            ExternalLabel(
+                "edge_tabs_animation_ready",
+                animationTargetCallbackMethod.getInstruction(0),
+            ),
+        )
+
         val tabSwitcherInitializer = firstMethodDeclaratively {
             returnType("V")
             custom {

@@ -35,6 +35,15 @@ public final class TabSwitcherMobile {
         view.post(state);
     }
 
+    public static boolean prepareAnimationTarget(Object tabList) {
+        if (!(tabList instanceof ViewGroup view)) {
+            return false;
+        }
+
+        LayoutState state = INSTALLED_VIEWS.get(view);
+        return state != null && state.updateLayout();
+    }
+
     private static final class LayoutState implements Runnable, View.OnLayoutChangeListener {
         private final WeakReference<ViewGroup> viewReference;
         private final int originalStart;
@@ -58,9 +67,13 @@ public final class TabSwitcherMobile {
 
         @Override
         public void run() {
+            updateLayout();
+        }
+
+        private boolean updateLayout() {
             ViewGroup view = viewReference.get();
             if (view == null) {
-                return;
+                return false;
             }
 
             int contentTop = Integer.MAX_VALUE;
@@ -78,7 +91,7 @@ public final class TabSwitcherMobile {
                 tallestChild = Math.max(tallestChild, child.getHeight());
             }
             if (tallestChild == 0) {
-                return;
+                return false;
             }
 
             boolean singleRow =
@@ -95,7 +108,7 @@ public final class TabSwitcherMobile {
                 );
             }
             if (desiredBottomClearance == appliedBottomClearance) {
-                return;
+                return false;
             }
 
             appliedBottomClearance = desiredBottomClearance;
@@ -105,6 +118,7 @@ public final class TabSwitcherMobile {
                 originalEnd,
                 originalBottom + appliedBottomClearance
             );
+            return true;
         }
 
         @Override
