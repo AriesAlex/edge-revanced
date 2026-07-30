@@ -591,6 +591,121 @@ try {
         throw 'The saved custom URL does not reach Edge new-tab URL field.'
     }
 
+    $tabLayoutHookCandidates = @()
+    foreach ($dexPath in $dexFiles) {
+        $rawText = [Text.Encoding]::UTF8.GetString(
+            [IO.File]::ReadAllBytes($dexPath)
+        )
+        if (
+            -not $rawText.Contains(
+                'Lapp/revanced/extension/edge/tabs/TabSwitcherMobile;'
+            ) -or
+            -not $rawText.Contains('updateLayout')
+        ) {
+            continue
+        }
+
+        $tabText = Get-DexDump -DexPath $dexPath
+        foreach ($marker in [regex]::Matches(
+            $tabText,
+            'invoke-static\s+\{[^}]+\},\s+' +
+                'Lapp/revanced/extension/edge/tabs/TabSwitcherMobile;' +
+                '\.updateLayout:\(Ljava/lang/Object;I\)V'
+        )) {
+            $candidate = Get-ContainingMethod `
+                -Text $tabText `
+                -MarkerIndex $marker.Index
+            if (
+                -not $candidate.Class.StartsWith(
+                    'Lapp/revanced/extension/'
+                )
+            ) {
+                $tabLayoutHookCandidates += $candidate
+            }
+        }
+    }
+    if ($tabLayoutHookCandidates.Count -ne 1) {
+        throw (
+            'Expected one tab-layout hook call, found ' +
+            "$($tabLayoutHookCandidates.Count)."
+        )
+    }
+
+    $tabLayoutHook = $tabLayoutHookCandidates[0]
+    Assert-ValidRegisters -Method $tabLayoutHook | Out-Null
+    $tabLayoutInstructions = @(
+        [regex]::Matches(
+            $tabLayoutHook.Text,
+            '(?m)^.*\|[0-9a-f]{4}:.*$'
+        ).Value
+    )
+    if ($tabLayoutInstructions.Count -lt 7) {
+        throw 'The tab-layout callback is incomplete.'
+    }
+    if (
+        $tabLayoutInstructions[0] -notmatch
+        'iget-object\s+(?<view>v\d+),\s+v\d+,\s+' +
+            'L[^;]+;\.[^:]+:' +
+            'Lorg/chromium/chrome/browser/tasks/tab_management/' +
+            'TabListRecyclerView;'
+    ) {
+        throw 'The tab-layout hook does not load the tab list first.'
+    }
+    $tabListRegister = $Matches.view
+    if (
+        $tabLayoutInstructions[1] -notmatch
+        "invoke-virtual\s+\{$tabListRegister\},\s+" +
+            'Landroidx/recyclerview/widget/RecyclerView;\.[^:]+:' +
+            '\(\)(?<adapter>L[^;]+;)'
+    ) {
+        throw 'The tab-layout hook does not read the RecyclerView adapter.'
+    }
+    $adapterType = $Matches.adapter
+    if (
+        $tabLayoutInstructions[2] -notmatch
+        'move-result-object\s+(?<adapterRegister>v\d+)'
+    ) {
+        throw 'The tab-layout hook does not retain the RecyclerView adapter.'
+    }
+    $adapterRegister = $Matches.adapterRegister
+    if (
+        $tabLayoutInstructions[3] -notmatch
+        "invoke-virtual\s+\{$adapterRegister\},\s+" +
+            "$([regex]::Escape($adapterType))\.getItemCount:\(\)I"
+    ) {
+        throw 'The tab-layout hook does not read the adapter item count.'
+    }
+    if (
+        $tabLayoutInstructions[4] -notmatch
+        'move-result\s+(?<countRegister>v\d+)'
+    ) {
+        throw 'The tab-layout hook does not retain the adapter item count.'
+    }
+    $countRegister = $Matches.countRegister
+    if (
+        $tabLayoutInstructions[5] -notmatch
+        "invoke-static\s+\{$tabListRegister,\s+$countRegister\},\s+" +
+            'Lapp/revanced/extension/edge/tabs/TabSwitcherMobile;' +
+            '\.updateLayout:\(Ljava/lang/Object;I\)V'
+    ) {
+        throw 'The tab-layout hook arguments are invalid.'
+    }
+    if (
+        $tabLayoutInstructions[6] -match
+        '\|[0-9a-f]{4}:\s+(?:return|goto)'
+    ) {
+        throw 'The tab-layout hook skips the original Edge callback.'
+    }
+    if (
+        (
+            $tabLayoutInstructions[6..($tabLayoutInstructions.Count - 1)] `
+                -join "`n"
+        ) -notmatch
+        'invoke-virtual\s+\{v\d+\},\s+L[^;]+;\.run:\(\)V'
+    ) {
+        throw 'The original Edge animation continuation is no longer reachable.'
+    }
+
     Write-Host (
         "Verified preference-backed new tab: " +
         "$($homepageReader.Class)->$($homepageReader.Name), " +
@@ -603,6 +718,10 @@ try {
     Write-Host (
         "Verified stable Edge icon in " +
         "$($canaryIconEntries.Count) Canary preview resources."
+    )
+    Write-Host (
+        "Verified branch-free tab-layout hook in " +
+        "$($tabLayoutHook.Class)->$($tabLayoutHook.Name)."
     )
 }
 finally {

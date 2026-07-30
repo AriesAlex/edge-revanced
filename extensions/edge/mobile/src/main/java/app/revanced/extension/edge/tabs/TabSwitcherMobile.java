@@ -1,14 +1,22 @@
 package app.revanced.extension.edge.tabs;
 
+import android.animation.Animator;
+import android.animation.ObjectAnimator;
 import android.os.Looper;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.animation.PathInterpolator;
 
 import java.lang.ref.WeakReference;
 import java.util.WeakHashMap;
 
 public final class TabSwitcherMobile {
+    private static final int GRID_SPAN_COUNT = 2;
     private static final int MINIMUM_BOTTOM_CLEARANCE_DP = 12;
+    private static final long REMOVAL_ANIMATION_DURATION_MS = 200;
+    private static final long MOVE_ANIMATION_DURATION_MS = 250;
+    private static final PathInterpolator MOVE_INTERPOLATOR =
+        new PathInterpolator(0.2f, 0.0f, 0.0f, 1.0f);
     private static final WeakHashMap<ViewGroup, LayoutState> INSTALLED_VIEWS =
         new WeakHashMap<>();
 
@@ -29,55 +37,45 @@ public final class TabSwitcherMobile {
 
         LayoutState state = new LayoutState(view);
         INSTALLED_VIEWS.put(view, state);
-        view.setClipToPadding(false);
         view.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
-        view.addOnLayoutChangeListener(state);
-        view.post(state);
     }
 
-    public static boolean prepareAnimationTarget(Object tabList) {
+    public static void updateLayout(Object tabList, int itemCount) {
         if (!(tabList instanceof ViewGroup view)) {
-            return false;
+            return;
+        }
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            view.post(() -> updateLayout(view, itemCount));
+            return;
         }
 
+        install(view);
         LayoutState state = INSTALLED_VIEWS.get(view);
-        return state != null && state.updateLayout();
+        if (state != null) {
+            state.updateLayout(itemCount);
+        }
     }
 
-    private static final class LayoutState implements Runnable, View.OnLayoutChangeListener {
+    private static final class LayoutState {
         private final WeakReference<ViewGroup> viewReference;
-        private final int originalStart;
-        private final int originalTop;
-        private final int originalEnd;
-        private final int originalBottom;
         private final int minimumBottomClearance;
-        private int appliedBottomClearance;
+        private float targetTranslationY = Float.NaN;
+        private Animator translationAnimator;
 
         private LayoutState(ViewGroup view) {
             viewReference = new WeakReference<>(view);
-            originalStart = view.getPaddingStart();
-            originalTop = view.getPaddingTop();
-            originalEnd = view.getPaddingEnd();
-            originalBottom = view.getPaddingBottom();
             minimumBottomClearance = Math.round(
                 view.getResources().getDisplayMetrics().density *
                     MINIMUM_BOTTOM_CLEARANCE_DP
             );
         }
 
-        @Override
-        public void run() {
-            updateLayout();
-        }
-
-        private boolean updateLayout() {
+        private void updateLayout(int itemCount) {
             ViewGroup view = viewReference.get();
             if (view == null) {
-                return false;
+                return;
             }
 
-            int contentTop = Integer.MAX_VALUE;
-            int contentBottom = Integer.MIN_VALUE;
             int tallestChild = 0;
             for (int index = 0; index < view.getChildCount(); index++) {
                 View child = view.getChildAt(index);
@@ -86,54 +84,63 @@ public final class TabSwitcherMobile {
                     continue;
                 }
 
-                contentTop = Math.min(contentTop, child.getTop());
-                contentBottom = Math.max(contentBottom, child.getBottom());
                 tallestChild = Math.max(tallestChild, child.getHeight());
             }
-            if (tallestChild == 0) {
-                return false;
+            if (tallestChild == 0 || itemCount <= 0) {
+                return;
             }
 
-            boolean singleRow =
-                contentBottom - contentTop <= tallestChild + minimumBottomClearance;
-            int desiredBottomClearance = 0;
-            if (singleRow) {
-                int originalEmptySpace = Math.max(
+            float desiredTranslationY = 0.0f;
+            if (itemCount <= GRID_SPAN_COUNT) {
+                int emptySpace = Math.max(
                     0,
-                    contentTop - originalTop + appliedBottomClearance
+                    view.getHeight() -
+                        view.getPaddingTop() -
+                        view.getPaddingBottom() -
+                        tallestChild
                 );
-                desiredBottomClearance = Math.max(
+                desiredTranslationY = -Math.max(
                     minimumBottomClearance,
-                    originalEmptySpace / 2
+                    emptySpace / 2
                 );
             }
-            if (desiredBottomClearance == appliedBottomClearance) {
-                return false;
+            if (
+                Float.compare(desiredTranslationY, targetTranslationY) == 0 &&
+                    (
+                        (translationAnimator != null &&
+                            translationAnimator.isStarted()) ||
+                            Math.abs(
+                                view.getTranslationY() - desiredTranslationY
+                            ) < 0.5f
+                    )
+            ) {
+                return;
             }
 
-            appliedBottomClearance = desiredBottomClearance;
-            view.setPaddingRelative(
-                originalStart,
-                originalTop,
-                originalEnd,
-                originalBottom + appliedBottomClearance
-            );
-            return true;
-        }
+            boolean animate = !Float.isNaN(targetTranslationY) && view.isShown();
+            boolean movingUp = desiredTranslationY < view.getTranslationY();
+            targetTranslationY = desiredTranslationY;
+            if (translationAnimator != null) {
+                translationAnimator.cancel();
+                translationAnimator = null;
+            }
+            if (!animate) {
+                view.setTranslationY(desiredTranslationY);
+                return;
+            }
 
-        @Override
-        public void onLayoutChange(
-            View view,
-            int left,
-            int top,
-            int right,
-            int bottom,
-            int oldLeft,
-            int oldTop,
-            int oldRight,
-            int oldBottom
-        ) {
-            run();
+            ObjectAnimator animator = ObjectAnimator.ofFloat(
+                view,
+                View.TRANSLATION_Y,
+                desiredTranslationY
+            );
+            animator.setDuration(MOVE_ANIMATION_DURATION_MS);
+            animator.setStartDelay(
+                movingUp ? REMOVAL_ANIMATION_DURATION_MS : 0
+            );
+            animator.setInterpolator(MOVE_INTERPOLATOR);
+            translationAnimator = animator;
+            animator.start();
         }
     }
 }

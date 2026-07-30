@@ -1180,7 +1180,7 @@ val tabSwitcherThumbReachPatch = bytecodePatch(
                 }
             }
         }
-        val animationTargetCallback = gridLayoutComplete.instructions
+        val tabLayoutCallback = gridLayoutComplete.instructions
             .mapNotNull { instruction ->
                 instruction.methodReference?.takeIf { reference ->
                     instruction.opcode == Opcode.INVOKE_VIRTUAL &&
@@ -1191,21 +1191,21 @@ val tabSwitcherThumbReachPatch = bytecodePatch(
                 }
             }
             .singleOrNull()
-            ?: error("Could not uniquely identify the tab animation target callback")
-        val animationTargetCallbackMethod = firstMethodDeclaratively {
-            definingClass(animationTargetCallback.definingClass)
-            name(animationTargetCallback.name)
-            returnType(animationTargetCallback.returnType)
+            ?: error("Could not uniquely identify the tab layout callback")
+        val tabLayoutCallbackMethod = firstMethodDeclaratively {
+            definingClass(tabLayoutCallback.definingClass)
+            name(tabLayoutCallback.name)
+            returnType(tabLayoutCallback.returnType)
             parameterTypes(
-                *animationTargetCallback.parameterTypes
+                *tabLayoutCallback.parameterTypes
                     .map(CharSequence::toString)
                     .toTypedArray(),
             )
         }
-        check(animationTargetCallbackMethod.implementation!!.registerCount > 1) {
-            "Tab animation target callback has no free local register"
+        check(tabLayoutCallbackMethod.implementation!!.registerCount > 1) {
+            "Tab layout callback has fewer than two local registers"
         }
-        val tabListField = animationTargetCallbackMethod.instructions
+        val tabListField = tabLayoutCallbackMethod.instructions
             .mapNotNull { instruction ->
                 instruction.fieldReference?.takeIf { reference ->
                     instruction.opcode == Opcode.IGET_OBJECT &&
@@ -1214,20 +1214,37 @@ val tabSwitcherThumbReachPatch = bytecodePatch(
                 }
             }
             .singleOrNull()
-            ?: error("Could not uniquely identify the animation target tab list")
-        animationTargetCallbackMethod.addInstructionsWithLabels(
+            ?: error("Could not uniquely identify the callback tab list")
+        val recyclerAdapterSetter = firstMethodDeclaratively {
+            definingClass("Landroidx/recyclerview/widget/RecyclerView;")
+            name("setAdapter")
+            returnType("V")
+            custom { parameterTypes.size == 1 }
+        }
+        val recyclerAdapterType =
+            recyclerAdapterSetter.parameterTypes.single().toString()
+        val recyclerAdapterGetter = firstMethodDeclaratively {
+            definingClass("Landroidx/recyclerview/widget/RecyclerView;")
+            accessFlags(AccessFlags.PUBLIC)
+            returnType(recyclerAdapterType)
+            parameterTypes()
+        }
+        val recyclerAdapterItemCount = firstMethodDeclaratively {
+            definingClass(recyclerAdapterType)
+            name("getItemCount")
+            returnType("I")
+            parameterTypes()
+        }
+        tabLayoutCallbackMethod.addInstructions(
             0,
             """
-                iget-object v0, p0, ${tabListField.definingClass}->${tabListField.name}:${tabListField.type}
-                invoke-static { v0 }, $TAB_SWITCHER_EXTENSION_CLASS->prepareAnimationTarget(Ljava/lang/Object;)Z
+                iget-object v1, p0, ${tabListField.definingClass}->${tabListField.name}:${tabListField.type}
+                invoke-virtual { v1 }, Landroidx/recyclerview/widget/RecyclerView;->${recyclerAdapterGetter.name}()$recyclerAdapterType
+                move-result-object v0
+                invoke-virtual { v0 }, $recyclerAdapterType->${recyclerAdapterItemCount.name}()I
                 move-result v0
-                if-eqz v0, :edge_tabs_animation_ready
-                return-void
+                invoke-static { v1, v0 }, $TAB_SWITCHER_EXTENSION_CLASS->updateLayout(Ljava/lang/Object;I)V
             """,
-            ExternalLabel(
-                "edge_tabs_animation_ready",
-                animationTargetCallbackMethod.getInstruction(0),
-            ),
         )
 
         val tabSwitcherInitializer = firstMethodDeclaratively {
