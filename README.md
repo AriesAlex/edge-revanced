@@ -1,22 +1,26 @@
 <p align="center">
+  <strong>English</strong> · <a href="README.ru.md">Русский</a>
+</p>
+
+<p align="center">
   <img src="docs/assets/edge-revanced-miku.png" width="240" alt="Edge ReVanced — Miku Edition">
 </p>
 
 <h1 align="center">Edge ReVanced</h1>
 
 <p align="center">
-  <strong>Microsoft Edge Canary для Android, доведённый до уровня Kiwi Browser.</strong>
+  <strong>Microsoft Edge Canary for Android, brought closer to the Kiwi Browser experience.</strong>
   <br>
-  Расширения из Chrome Web Store, локальные DevTools, своя новая вкладка
-  и интерфейс, до которого удобно дотянуться большим пальцем.
+  Chrome Web Store extensions, on-device DevTools, a custom new tab page,
+  and a thumb-friendly tab switcher.
 </p>
 
 <p align="center">
   <a href="https://github.com/AriesAlex/edge-revanced/releases/latest/download/edge-revanced.apk">
-    <img alt="Скачать Edge ReVanced APK" src="https://img.shields.io/badge/%D0%A1%D0%9A%D0%90%D0%A7%D0%90%D0%A2%D0%AC-Edge_ReVanced_APK-0A84FF?style=for-the-badge&amp;logo=microsoftedge&amp;logoColor=white">
+    <img alt="Download Edge ReVanced APK" src="https://img.shields.io/badge/DOWNLOAD-Edge_ReVanced_APK-0A84FF?style=for-the-badge&amp;logo=microsoftedge&amp;logoColor=white">
   </a>
   <a href="https://github.com/AriesAlex/edge-revanced/releases">
-    <img alt="Открыть Releases" src="https://img.shields.io/badge/RELEASES-%D0%B8%D1%81%D1%82%D0%BE%D1%80%D0%B8%D1%8F_%D1%81%D0%B1%D0%BE%D1%80%D0%BE%D0%BA-24292F?style=for-the-badge&amp;logo=github&amp;logoColor=white">
+    <img alt="Open Releases" src="https://img.shields.io/badge/RELEASES-build_history-24292F?style=for-the-badge&amp;logo=github&amp;logoColor=white">
   </a>
 </p>
 
@@ -33,205 +37,225 @@
 </p>
 
 > [!IMPORTANT]
-> Готовая сборка предназначена для Android 10+ и `arm64-v8a`.
-> Из-за другой подписи её нельзя обновить поверх официального Edge Canary:
-> при первом переходе официальную Canary нужно удалить. Следующие версии
-> Edge ReVanced устанавливаются поверх мода без потери данных.
+> The prebuilt APK targets Android 10+ and `arm64-v8a`.
+> It cannot update the official Edge Canary because it uses a different signing
+> key. Uninstall the official Canary once before installing Edge ReVanced.
+> Future Edge ReVanced releases update in place without losing browser data.
 
-## Что меняется
+## What changes
 
-- **Расширения без whitelist.** На странице Chrome Web Store работает привычная
-  синяя кнопка установки. Успешно установленное расширение сразу включается,
-  без копирования ID в Developer options. Совместимость конкретного интерфейса
-  с телефоном всё ещё зависит от автора расширения.
-- **DevTools прямо на телефоне.** В меню Edge появляется пункт
-  «Средства разработчика». Встроенный Chromium frontend подключается к текущей
-  вкладке через локальный CDP-proxy; компьютер и удалённая отладка не нужны.
-- **Любая новая вкладка.** Встроенная Microsoft NTP заменяется заданным
-  HTTP/HTTPS-адресом. По умолчанию открывается
-  [`tabpage.ariex.ru`](https://tabpage.ariex.ru) с отдельными настройками для
-  нескольких учётных записей.
-- **Вкладки под правую руку.** Первая карточка находится справа снизу, новые
-  вкладки добавляются в обратном порядке вверх, а короткая сетка поднимается
-  в удобную зону большого пальца. Длинный список прокручивается до края экрана
-  без постоянной пустоты снизу.
-- **Свайп вверх к вкладкам.** Экран вкладок открывается свайпом вверх по панели
-  инструментов и при верхней, и при нижней адресной строке.
-- **Свой брендинг.** Приложение называется `Edge ReVanced`, использует обычную
-  иконку Edge вместо Canary и показывает Miku-арт в настоящем системном splash
-  без искусственной задержки.
-- **Без навязчивого account notice.** Закрывается только повторяющееся окно
-  «Краткое примечание о вашей учетной записи Майкрософт» — аккаунт и
-  синхронизация продолжают работать.
+- **Extensions without a whitelist.** The familiar blue install button works
+  directly on Chrome Web Store pages. A successfully installed extension is
+  enabled immediately; there is no need to copy its ID into Developer options.
+  Individual extension UIs may still depend on mobile support from their author.
+- **DevTools on the phone.** Edge gains a **DevTools** menu item. The bundled
+  Chromium frontend connects to the current tab through a local CDP proxy, so
+  neither a computer nor remote debugging is required.
+- **Your new tab, not Microsoft’s feed.** The new-tab settings contain one URL
+  editor; MSN, news, weather, and wallpaper controls are removed. New profiles
+  default to [`tabpage.ariex.ru`](https://tabpage.ariex.ru), which supports
+  separate settings for multiple accounts, but the URL can be changed inside
+  Edge at any time.
+- **Tabs within right-thumb reach.** The first card starts at the lower right,
+  newer tabs grow upward in reverse order, and a short grid sits in a reachable
+  area. Long lists still scroll all the way to the screen edge without a
+  permanent empty gap below.
+- **Swipe up for tabs.** Swiping upward on the toolbar opens the tab switcher
+  with either top or bottom address-bar placement.
+- **Custom branding.** The app is named `Edge ReVanced`, uses the regular Edge
+  icon instead of the Canary badge, and shows Miku artwork in the real Android
+  system splash without an artificial launch delay.
+- **No recurring account notice.** Only the repeated Microsoft account summary
+  dialog is dismissed; account sign-in and sync continue to work.
 
-## Как это выглядит
+## Screenshots
 
 <table>
   <tr>
     <td width="50%" align="center" valign="top">
-      <h3>Своя новая вкладка</h3>
+      <h3>Custom new tab</h3>
       <p>
-        Вместо Microsoft NTP открывается полноценная персональная страница
-        с синхронизацией, несколькими аккаунтами и крупными touch-целями.
+        A full personal start page replaces Microsoft NTP, with sync,
+        multiple accounts, and large touch targets.
       </p>
-      <img src="docs/assets/new-tab.webp" width="280" alt="Кастомная новая вкладка в Edge ReVanced">
+      <img src="docs/assets/new-tab.webp" width="280" alt="Custom new tab in Edge ReVanced">
     </td>
     <td width="50%" align="center" valign="top">
-      <h3>Мобильные DevTools</h3>
+      <h3>Mobile DevTools</h3>
       <p>
-        DOM, стили, консоль, Sources, Network и остальные Chromium-панели.
-        Кнопка <code>»</code> для скрытых инструментов всегда остаётся на виду.
+        DOM, styles, Console, Sources, Network, and the rest of Chromium
+        DevTools. The <code>»</code> overflow button remains reachable.
       </p>
-      <img src="docs/assets/devtools.webp" width="280" alt="Chromium DevTools на телефоне в Edge ReVanced">
+      <img src="docs/assets/devtools.webp" width="280" alt="Chromium DevTools on a phone in Edge ReVanced">
     </td>
   </tr>
   <tr>
     <td width="50%" align="center" valign="top">
-      <h3>Вкладки ближе к пальцу</h3>
+      <h3>Thumb-friendly tabs</h3>
       <p>
-        Активная вкладка — справа, старые карточки — ниже, новые растут вверх.
-        До основных действий не приходится тянуться через весь экран.
+        The active tab is on the right, older cards sit below, and newer tabs
+        grow upward. Primary actions no longer require crossing the screen.
       </p>
-      <img src="docs/assets/tabs.webp" width="280" alt="Экран вкладок Edge ReVanced для управления правой рукой">
+      <img src="docs/assets/tabs.webp" width="280" alt="Right-thumb tab switcher in Edge ReVanced">
     </td>
     <td width="50%" align="center" valign="top">
-      <h3>Настоящий Android splash</h3>
+      <h3>Real Android splash</h3>
       <p>
-        Системная заставка Android заменена ресурсным патчем: без второго
-        Activity, фальшивого экрана и задержки запуска браузера.
+        The system splash is replaced as an Android resource: no second
+        Activity, fake screen, or launch delay.
       </p>
-      <img src="docs/assets/splash.webp" width="280" alt="Системная заставка Edge ReVanced с Miku">
+      <img src="docs/assets/splash.webp" width="280" alt="Edge ReVanced system splash with Miku artwork">
     </td>
   </tr>
 </table>
 
 <p align="center">
   <sub>
-    Реальные скриншоты Edge Canary 152.0.4184.0 на OnePlus 13,
-    Android 16, портретный режим.
+    Real Edge Canary 152.0.4184.0 screenshots from a OnePlus 13 running
+    Android 16 in portrait orientation.
   </sub>
 </p>
 
-## Установка
+## Install
 
-1. Скачайте [`edge-revanced.apk`](https://github.com/AriesAlex/edge-revanced/releases/latest/download/edge-revanced.apk).
-2. Если установлена официальная **Edge Canary**, удалите её один раз из-за
-   несовпадающих подписей.
-3. Откройте APK на телефоне и разрешите установку из выбранного источника.
-4. Следующие релизы ставьте поверх текущего Edge ReVanced — профиль, вкладки и
-   настройки сохранятся.
+1. Download [`edge-revanced.apk`](https://github.com/AriesAlex/edge-revanced/releases/latest/download/edge-revanced.apk).
+2. If the official **Edge Canary** is installed, uninstall it once because the
+   signatures differ.
+3. Open the APK and allow installation from the selected source.
+4. Install future releases over Edge ReVanced to keep the profile, tabs, and
+   settings.
 
-Через ADB тот же APK устанавливается так:
+The same APK can be installed through ADB:
 
 ```powershell
 adb install -r 'C:\path\to\edge-revanced.apk'
 ```
 
-Стабильный URL выше всегда ведёт прямо на последний APK без ZIP-архива.
-Версионный APK и соответствующий `.rvp` доступны на странице
-[Releases](https://github.com/AriesAlex/edge-revanced/releases).
+The stable link above always downloads the latest raw APK, not a ZIP archive.
+The versioned APK and matching `.rvp` are available on the
+[Releases](https://github.com/AriesAlex/edge-revanced/releases) page.
 
-## Как устроен проект
+### Change the new tab URL
+
+Open **Settings → New tab page → New tab URL**, enter an absolute HTTP or HTTPS
+address, and confirm it. The next new tab uses the saved value immediately;
+rebuilding or repatching the APK is not required.
+
+English is the fallback application locale, and the added UI is also localized
+in Russian. Edge ReVanced does not force the device or browser language.
+
+## Project architecture
 
 ```text
-чистый монолитный Edge Canary APK (arm64-v8a)
-                       │
-                       ▼
-              ReVanced Patcher 22
-                       │
-       ┌───────────────┼────────────────┐
-       │               │                │
- Kotlin bytecode   mobile.rve      DevTools frontend
- resource patches  runtime Java    + touch-адаптация
-       │               │                │
-       └───────────────┼────────────────┘
-                       ▼
-            пересобранные DEX/resources
-                       │
-                       ▼
-             подпись edge-mod.keystore
-                       │
-                       ▼
-                  готовый APK
+clean monolithic Edge Canary APK (arm64-v8a)
+                         │
+                         ▼
+                ReVanced Patcher 22
+                         │
+       ┌─────────────────┼──────────────────┐
+       │                 │                  │
+ Kotlin bytecode     mobile.rve        DevTools frontend
+ resource patches    runtime Java      + touch adaptation
+       │                 │                  │
+       └─────────────────┼──────────────────┘
+                         ▼
+              rebuilt DEX and resources
+                         │
+                         ▼
+             persistent private signing key
+                         │
+                         ▼
+                    patched APK
 ```
 
 - [`EdgePatches.kt`](patches/src/main/kotlin/app/revanced/patches/edge/EdgePatches.kt)
-  содержит fingerprints и статические изменения DEX/resources.
-- [`extensions/edge/mobile`](extensions/edge/mobile) собирается в `mobile.rve`.
-  Runtime-код запускает DevTools proxy, обслуживает Chrome Web Store, закрывает
-  точное account notice и настраивает Android View экрана вкладок.
-- [`devtools-mobile.js`](scripts/devtools-mobile.js) адаптирует собранный
-  Chromium DevTools frontend к узкому touch-интерфейсу.
-- [`bootstrap.ps1`](scripts/bootstrap.ps1) проверяет ReVanced CLI по SHA-256,
-  получает закреплённый commit официального Gradle plugin и собирает DevTools.
-- [`patch.ps1`](scripts/patch.ps1) применяет `.rvp`, перепаковывает и подписывает
-  APK, а [`verify-patched-apk.ps1`](scripts/verify-patched-apk.ps1) проверяет
-  DEX-контракт новой вкладки.
-- [`edge-canary.ts`](scripts/edge-canary.ts) находит и скачивает последний
-  монолитный ARM64 APK Canary для CI через открытый контракт MIT-проекта
-  [EFF apkeep](https://github.com/EFForg/apkeep).
+  contains structural fingerprints and static DEX/resource changes.
+- [`extensions/edge/mobile`](extensions/edge/mobile) builds into `mobile.rve`.
+  Runtime code hosts the DevTools proxy, handles Chrome Web Store installation,
+  dismisses the exact account notice, and adjusts the Android tab-switcher
+  views.
+- [`devtools-mobile.js`](scripts/devtools-mobile.js) adapts the bundled Chromium
+  DevTools frontend to a narrow touch interface.
+- [`bootstrap.ps1`](scripts/bootstrap.ps1) verifies ReVanced CLI by SHA-256,
+  checks out a pinned official Gradle plugin commit, and prepares DevTools.
+- [`patch.ps1`](scripts/patch.ps1) applies the `.rvp`, repackages, and signs the
+  APK. [`verify-patched-apk.ps1`](scripts/verify-patched-apk.ps1) checks the
+  preference-backed new-tab bytecode and Canary icon replacement.
+- [`edge-canary.ts`](scripts/edge-canary.ts) discovers and downloads the latest
+  monolithic ARM64 Canary APK for CI through the public contract of the
+  MIT-licensed [EFF apkeep](https://github.com/EFForg/apkeep) project.
 
-`.rvp` — JAR-контейнер с metadata, JVM-классами патчей, их Android DEX-версией,
-runtime extension и ресурсами. Сам Edge и Microsoft-код внутрь `.rvp` не входят.
+An `.rvp` is a JAR container with patch metadata, JVM patch classes, their
+Android DEX form, the runtime extension, and resources. Microsoft Edge code is
+not distributed inside the patch bundle.
 
 <details>
-<summary><strong>Сборка из исходников</strong></summary>
+<summary><strong>Build from source</strong></summary>
 
-### Требования
+### Requirements
 
 - Windows PowerShell;
 - Git;
 - JDK 21;
 - Bun;
-- Android SDK Platform `37.0` и Build-Tools `37.0.0`;
-- чистый монолитный `arm64-v8a` APK Edge Canary, не split APK.
+- Android SDK Platform `37.0` and Build-Tools `37.0.0`;
+- a clean monolithic `arm64-v8a` Edge Canary APK, not split APKs;
+- your own ReVanced CLI keystore for local signing.
 
-### Подготовка и сборка bundle
+### Prepare and build the patch bundle
 
 ```powershell
 .\scripts\bootstrap.ps1
 .\scripts\build.ps1
 ```
 
-Bootstrap создаёт воспроизводимые ignored-артефакты:
+Bootstrap creates reproducible ignored artifacts:
 
 - ReVanced CLI `6.0.0` / Patcher `22.0.0`;
-- официальный `revanced-patches-gradle-plugin` на закреплённом commit;
-- Chromium DevTools frontend с русской и английской локалями.
+- the official `revanced-patches-gradle-plugin` at a pinned commit;
+- Chromium DevTools frontend with English and Russian locales.
 
-Frontend упаковывается в детерминированный ZIP с manifest и SHA-256 исходников.
-Повторный запуск проверяет готовый архив и становится no-op.
+The frontend is packed into a deterministic ZIP with a source manifest and
+SHA-256 hashes. A repeated bootstrap verifies the complete archive and becomes
+a no-op.
 
-### Создание APK
+### Create an APK
 
-```powershell
-.\scripts\patch.ps1 `
-    -Apk 'C:\path\to\Edge-Canary-arm64.apk'
-```
-
-Без `-Rvp` скрипт сначала собирает bundle из текущих исходников. Готовый bundle
-можно применить без Gradle, Bun и повторной загрузки DevTools:
+Place an ignored `edge-mod.keystore` in the repository root, or pass its path
+explicitly:
 
 ```powershell
 .\scripts\patch.ps1 `
     -Apk 'C:\path\to\Edge-Canary-arm64.apk' `
-    -Rvp 'C:\path\to\edge-revanced.rvp'
+    -Keystore 'C:\secure\edge-mod.keystore'
 ```
 
-DevTools frontend уже находится внутри `.rvp`, но для перепаковки всё равно
-нужны ReVanced CLI, Android SDK framework `37.0`, `aapt2`, исходный APK и
-постоянный ключ подписи.
-
-Другой адрес новой вкладки задаётся при патчинге:
+Without `-Rvp`, the script first builds the bundle from current sources. An
+already built bundle can be applied without Gradle, Bun, or another DevTools
+download:
 
 ```powershell
 .\scripts\patch.ps1 `
     -Apk 'C:\path\to\Edge-Canary-arm64.apk' `
-    -NewTabUrl 'https://example.com/start' `
-    -CpuCount 6
+    -Rvp 'C:\path\to\edge-revanced.rvp' `
+    -Keystore 'C:\secure\edge-mod.keystore'
 ```
 
-Для отдельной тестовой установки доступен пакет
+The DevTools frontend is already stored inside the `.rvp`, but repackaging still
+requires ReVanced CLI, Android SDK framework 37, a compatible `aapt2`, the source
+APK, and a persistent signing key.
+
+`-NewTabUrl` changes the initial URL for a fresh profile:
+
+```powershell
+.\scripts\patch.ps1 `
+    -Apk 'C:\path\to\Edge-Canary-arm64.apk' `
+    -NewTabUrl 'https://example.com/start'
+```
+
+Users can later change that address in Edge settings without another build.
+
+For a separate test installation, use package
 `com.microsoft.emmx.canary.revanced`:
 
 ```powershell
@@ -240,73 +264,76 @@ DevTools frontend уже находится внутри `.rvp`, но для п�
     -SideBySide
 ```
 
-Side-by-side режим не является основным: Microsoft/Google login и внешние
-интеграции могут проверять исходный package name.
+Side-by-side mode is not the primary distribution mode: Microsoft/Google login
+and external integrations may validate the original package name.
 
-`edge-mod.keystore` намеренно хранится в корне приватного репозитория. Не
-заменяйте его: Android обновляет установленный мод только APK с той же подписью.
-
-</details>
-
-<details>
-<summary><strong>Что происходит при выходе новой версии Edge</strong></summary>
-
-Патчи не привязаны к списку разрешённых версий. Точки внедрения ищутся по
-структурным признакам: стабильным Chromium/Microsoft типам, сигнатурам, строкам,
-resource references и характерным opcode-последовательностям.
-
-1. Скачивается новый монолитный ARM64 APK Canary.
-2. Тот же `.rvp` применяется без ручной правки номера версии.
-3. Каждый fingerprint обязан найти ровно одну точку внедрения.
-4. APK проходит статическую проверку и устанавливается через `adb install -r`.
-5. Изменённые сценарии повторно проверяются на настоящем ARM64-устройстве.
-
-Если Microsoft изменила затронутый code path, сборка останавливается на
-конкретном fingerprint. Она не пытается молча пропатчить «похожий» метод.
-Обфусцированные имена классов и методов не закрепляются в патчах, поэтому
-обычная переминификация сама по себе не требует переписывать мод.
-
-Успешная перепаковка APK не считается доказательством корректного UX:
-финальная проверка выполняется на физическом телефоне.
+Do not rotate your signing key between builds. Android only updates an installed
+app with an APK signed by the same identity. The official Edge ReVanced key is
+not stored in Git; GitHub Actions reconstructs it from the encrypted repository
+secret `EDGE_MOD_KEYSTORE_BASE64`.
 
 </details>
 
 <details>
-<summary><strong>GitHub Actions, Releases и ReVanced Manager</strong></summary>
+<summary><strong>When a new Edge version is released</strong></summary>
 
-Workflow **Build Edge ReVanced APK** можно запустить вручную кнопкой
-**Run workflow**. Он:
+The patches are not tied to an allowlist of Edge versions. Injection points are
+found through structural evidence: stable Chromium/Microsoft types, signatures,
+strings, resource references, and characteristic opcode sequences.
 
-1. определяет последнюю версию Edge Canary;
-2. скачивает монолитный `arm64-v8a` APK;
-3. проверяет package name, ABI и подпись Microsoft;
-4. собирает `.rvp`, применяет патчи и подписывает APK;
-5. проверяет имя, иконку, splash-ресурсы, версию, подпись и DEX-контракт;
-6. публикует APK и `.rvp` отдельными artifacts и Release assets.
+1. Download the new monolithic ARM64 Canary APK.
+2. Apply the same `.rvp` without editing its version number.
+3. Every fingerprint must resolve to exactly one injection point.
+4. Run static verification and install through `adb install -r`.
+5. Repeat each changed user flow on a real ARM64 device.
 
-Push в `main` запускает тяжёлую сборку только тогда, когда Release для найденной
-версии Canary ещё не существует. Ручной запуск всегда пересобирает последнюю
-версию и обновляет существующий Release.
+If Microsoft changes a touched code path, the build stops at that fingerprint.
+It never silently patches a merely similar method. Obfuscated class and method
+names are not pinned, so ordinary re-minification does not require rewriting the
+mod.
 
-GitHub Actions artifacts всегда скачиваются как ZIP. Для прямой установки
-используйте стабильный `edge-revanced.apk` из Release.
-
-ReVanced Manager использует тот же Patcher на Android, но текущий Edge ReVanced
-официально поддерживает PC pipeline. DevTools добавляет сотни ресурсов и требует
-полной перекомпиляции через framework Android SDK 37 и совместимый `aapt2`;
-обычный Manager не получает этот контракт из репозитория.
+A successfully repackaged APK is not considered proof of correct UX; final
+validation happens on a physical phone.
 
 </details>
 
-## Проверенная совместимость
+<details>
+<summary><strong>GitHub Actions, Releases, and ReVanced Manager</strong></summary>
 
-Патчи и пользовательские сценарии проверены на ARM64-сборках:
+Run **Build Edge ReVanced APK** manually through **Run workflow**. It:
+
+1. discovers the latest Edge Canary version;
+2. downloads the monolithic `arm64-v8a` APK;
+3. verifies package name, ABI, and Microsoft’s certificate;
+4. builds the `.rvp`, applies patches, and signs the APK;
+5. verifies name, icon previews, splash resources, version, signing identity,
+   and the preference-backed new-tab DEX contract;
+6. publishes the APK and `.rvp` as separate Actions artifacts and Release
+   assets.
+
+A push to `main` runs the heavy build only when no Release exists for the
+discovered Canary version. A manual run always rebuilds the latest version and
+updates the existing Release.
+
+GitHub Actions artifacts are always downloaded as ZIP files. For direct
+installation, use `edge-revanced.apk` from the Release.
+
+ReVanced Manager uses the same Patcher on Android, but Edge ReVanced currently
+supports the PC pipeline. DevTools adds hundreds of resources and requires a
+full recompile against Android SDK framework 37 with a compatible `aapt2`; the
+stock Manager does not receive that environment contract from this repository.
+
+</details>
+
+## Verified compatibility
+
+Patches and user flows have been tested with ARM64 builds:
 
 - Edge Canary `152.0.4180.0`;
 - Edge Canary `152.0.4184.0`.
 
-Последний полный device-тест: **OnePlus 13, Android 16**.
+Latest full device test: **OnePlus 13, Android 16**.
 
-## Лицензия
+## License
 
-Edge ReVanced распространяется по лицензии [GPLv3](LICENSE).
+Edge ReVanced is licensed under [GPLv3](LICENSE).

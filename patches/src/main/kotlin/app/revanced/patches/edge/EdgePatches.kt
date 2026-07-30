@@ -42,6 +42,8 @@ private const val EDGE_CANARY_ICON = "@mipmap/edge_app_icon_canary"
 private const val EDGE_STABLE_ICON = "@mipmap/edge_app_icon"
 private const val EDGE_TABBED_ACTIVITY =
     "org.chromium.chrome.browser.ChromeTabbedActivity"
+private const val EDGE_NTP_SETTINGS_CLASS =
+    "Lorg/chromium/chrome/browser/edge_settings/edge_ntp/EdgeNTPSettings;"
 private const val EDGE_CANARY_SPLASH_ICON =
     "@mipmap/edge_app_icon_foreground_canary"
 private const val EDGE_SPLASH_ARTWORK = "edge-revanced-splash.png"
@@ -69,11 +71,33 @@ private const val WEB_CONTENTS_JAVASCRIPT_EXTENSION_CLASS =
     "Lapp/revanced/extension/edge/WebContentsJavaScript;"
 private const val EVALUATE_JAVASCRIPT_METHOD_PLACEHOLDER =
     "__EDGE_EVALUATE_JAVASCRIPT_METHOD__"
+private const val HOMEPAGE_CUSTOM_URL_KEY = "Chrome.Homepage.CustomGurl"
+private const val HOMEPAGE_LEGACY_CUSTOM_URL_KEY = "homepage_custom_uri"
+private const val HOMEPAGE_PARTNER_ENABLED_KEY = "homepage_partner_enabled"
+private const val NEW_TAB_URL_STRING = "edge_revanced_new_tab_url"
 private const val MICROSOFT_ACCOUNT_NOTICE_EXTENSION_CLASS =
     "Lapp/revanced/extension/edge/account/MicrosoftAccountNotice;"
 private const val TAB_SWITCHER_EXTENSION_CLASS =
     "Lapp/revanced/extension/edge/tabs/TabSwitcherMobile;"
 private val patchClassLoader = object {}.javaClass.classLoader
+private val hiddenNewTabPreferenceKeys = listOf(
+    "news_feed_toggle",
+    "news_feed_category",
+    "region_and_language",
+    "news_source_perf",
+    "news_interest_perf",
+    "news_feed_footer",
+    "ntp_wallpaper_category",
+    "show_wallpaper_toggle",
+    "edit_wallpaper_pref",
+    "ntp_daily_image_pref",
+    "content_service_category",
+    "weather_widget_toggle",
+    "temperature_pref",
+    "weather_gps_detection_toggle",
+    "ntp_on_startup_category",
+    "browsing_options_pref",
+)
 
 private fun String.toSmaliString(): String = buildString(length) {
     this@toSmaliString.forEach { character ->
@@ -202,6 +226,40 @@ val edgeRevancedBrandingPatch = resourcePatch(
                         "The Edge tabbed activity has no theme"
                     }
                 }
+        }
+
+        val mipmapDirectories = this["res", false]
+            .listFiles { file ->
+                file.isDirectory && file.name.startsWith("mipmap")
+            }
+            .orEmpty()
+        var replacedCanaryIcons = 0
+        mipmapDirectories.forEach { directory ->
+            directory
+                .listFiles { file ->
+                    file.isFile &&
+                        (
+                            file.name == "edge_app_icon_canary" ||
+                                file.name.startsWith("edge_app_icon_canary.")
+                        )
+                }
+                .orEmpty()
+                .forEach { canaryIcon ->
+                    val stableIcon = directory.resolve(
+                        canaryIcon.name.replace(
+                            "edge_app_icon_canary",
+                            "edge_app_icon",
+                        ),
+                    )
+                    check(stableIcon.isFile) {
+                        "Missing stable Edge counterpart for ${canaryIcon.path}"
+                    }
+                    stableIcon.copyTo(canaryIcon, overwrite = true)
+                    replacedCanaryIcons++
+                }
+        }
+        check(replacedCanaryIcons >= 2) {
+            "Could not replace the Canary app-icon previews"
         }
 
         val splashArtwork = this["res/drawable-nodpi/$EDGE_SPLASH_DRAWABLE", false]
@@ -357,6 +415,123 @@ val edgeRevancedBrandingPatch = resourcePatch(
         }
         check(patchedSplashLayouts > 0) {
             "Could not find any Edge splash layouts"
+        }
+    }
+}
+
+private val customNewTabResourcesPatch = resourcePatch {
+    compatibleWith(EDGE_CANARY_PACKAGE)
+    dependsOn(androidFrameworkPatch)
+
+    apply {
+        fun addLocalizedString(relativePath: String, value: String) {
+            document(relativePath).use { document ->
+                val existing = document.getElementsByTagName("string")
+                    .let { strings ->
+                        (0 until strings.length)
+                            .map { strings.item(it) as Element }
+                            .filter {
+                                it.getAttribute("name") == NEW_TAB_URL_STRING
+                            }
+                    }
+                check(existing.isEmpty()) {
+                    "$NEW_TAB_URL_STRING already exists in $relativePath"
+                }
+
+                val string = document.createElement("string").apply {
+                    setAttribute("name", NEW_TAB_URL_STRING)
+                    textContent = value
+                }
+                document.documentElement.appendChild(string)
+            }
+        }
+
+        addLocalizedString("res/values/strings.xml", "New tab URL")
+        addLocalizedString("res/values-ru/strings.xml", "Адрес новой вкладки")
+
+        val xmlDirectory = this["res/xml", false]
+        val newTabSettingsFiles = xmlDirectory
+            .listFiles { file -> file.isFile && file.extension == "xml" }
+            .orEmpty()
+            .filter { file ->
+                val text = file.readText()
+                text.contains("home_page_pref") &&
+                    text.contains("browsing_options_pref") &&
+                    text.contains("weather_widget_toggle")
+            }
+        check(newTabSettingsFiles.size == 1) {
+            "Expected one Edge new-tab settings XML, found " +
+                newTabSettingsFiles.size
+        }
+        document("res/xml/${newTabSettingsFiles.single().name}").use { document ->
+            val keyedElements = document.getElementsByTagName("*")
+                .let { nodes ->
+                    (0 until nodes.length)
+                        .map { nodes.item(it) as Element }
+                        .filter { it.hasAttribute("android:key") }
+                        .associateBy { it.getAttribute("android:key") }
+                }
+            val expectedKeys = hiddenNewTabPreferenceKeys +
+                listOf("ntp_home_page_category", "home_page_pref")
+            check(expectedKeys.all(keyedElements::containsKey)) {
+                "The Edge new-tab settings XML has an unexpected structure"
+            }
+
+            hiddenNewTabPreferenceKeys.forEach { key ->
+                keyedElements.getValue(key)
+                    .setAttribute("android:visible", "false")
+            }
+            keyedElements.getValue("ntp_home_page_category")
+                .removeAttribute("android:title")
+        }
+
+        val layoutDirectories = this["res", false]
+            .listFiles { file ->
+                file.isDirectory && file.name.startsWith("layout")
+            }
+            .orEmpty()
+        val homepageLayouts = layoutDirectories
+            .flatMap { directory ->
+                directory
+                    .listFiles { file -> file.isFile && file.extension == "xml" }
+                    .orEmpty()
+                    .filter { file ->
+                        val text = file.readText()
+                        text.contains("@id/edge_settings_home_page_ntp") &&
+                            text.contains("@id/edge_settings_home_page_sp")
+                    }
+                    .map { file -> directory to file }
+            }
+        check(homepageLayouts.size == 2) {
+            "Expected both Edge homepage preference layouts, found " +
+                homepageLayouts.size
+        }
+        homepageLayouts.forEach { (directory, file) ->
+            document("res/${directory.name}/${file.name}").use { document ->
+                val elements = document.getElementsByTagName("*")
+                    .let { nodes ->
+                        (0 until nodes.length)
+                            .map { nodes.item(it) as Element }
+                    }
+                val nativeNewTab = elements.single {
+                    it.getAttribute("android:id") ==
+                        "@id/edge_settings_home_page_ntp"
+                }
+                val customUrl = elements.single {
+                    it.getAttribute("android:id") ==
+                        "@id/edge_settings_home_page_sp"
+                }
+
+                nativeNewTab.setAttribute("android:visibility", "gone")
+                val stringAttributes = (0 until customUrl.attributes.length)
+                    .map { customUrl.attributes.item(it) }
+                    .filter { it.nodeValue.startsWith("@string/") }
+                check(stringAttributes.size == 1) {
+                    "Could not identify the custom URL title in ${file.name}"
+                }
+                stringAttributes.single().nodeValue =
+                    "@string/$NEW_TAB_URL_STRING"
+            }
         }
     }
 }
@@ -518,6 +693,7 @@ val customNewTabPatch = bytecodePatch(
     description = "Открывает выбранную веб-страницу вместо встроенной новой вкладки Edge.",
 ) {
     compatibleWith(EDGE_CANARY_PACKAGE)
+    dependsOn(customNewTabResourcesPatch)
 
     val newTabUrl by stringOption(
         name = "New tab URL",
@@ -528,19 +704,154 @@ val customNewTabPatch = bytecodePatch(
     )
 
     apply {
+        val escapedUrl = newTabUrl!!.toSmaliString()
+        val homepageCustomUrl = firstMethodDeclaratively {
+            returnType("Lorg/chromium/url/GURL;")
+            parameterTypes()
+            strings(
+                HOMEPAGE_CUSTOM_URL_KEY,
+                HOMEPAGE_LEGACY_CUSTOM_URL_KEY,
+            )
+        }
+        val customUrlKeyIndex = homepageCustomUrl.instructions.indexOfFirst {
+            it.stringReference?.string == HOMEPAGE_CUSTOM_URL_KEY
+        }.also { index ->
+            check(index >= 0) {
+                "Could not find Edge's custom homepage preference read"
+            }
+        }
+        val customUrlDefaultIndex = homepageCustomUrl.instructions
+            .withIndex()
+            .drop(customUrlKeyIndex + 1)
+            .firstOrNull { (_, instruction) ->
+                instruction.opcode in setOf(
+                    Opcode.CONST_STRING,
+                    Opcode.CONST_STRING_JUMBO,
+                ) &&
+                    instruction.stringReference?.string == ""
+            }
+            ?.index
+            ?: error("Could not find Edge's custom homepage default")
+        val customUrlDefaultRegister =
+            homepageCustomUrl.getInstruction<OneRegisterInstruction>(
+                customUrlDefaultIndex,
+            ).registerA
+        homepageCustomUrl.replaceInstruction(
+            customUrlDefaultIndex,
+            """const-string v$customUrlDefaultRegister, "$escapedUrl"""",
+        )
+
+        val homepagePartnerEnabled = firstMethodDeclaratively {
+            definingClass(homepageCustomUrl.definingClass)
+            returnType("Z")
+            parameterTypes()
+            strings(HOMEPAGE_PARTNER_ENABLED_KEY)
+        }
+        val homepagePartnerRegisters =
+            homepagePartnerEnabled.implementation!!.registerCount
+        check(homepagePartnerRegisters >= 2) {
+            "Edge's homepage selection method has no local register"
+        }
+        homepagePartnerEnabled.setImplementation(
+            MutableMethodImplementation(homepagePartnerRegisters),
+        )
+        homepagePartnerEnabled.addInstructions(
+            0,
+            """
+                const/4 v0, 0x0
+                return v0
+            """,
+        )
+
+        val homepageManager = firstMethodDeclaratively {
+            definingClass(homepageCustomUrl.definingClass)
+            accessFlags(AccessFlags.PUBLIC, AccessFlags.STATIC)
+            returnType(homepageCustomUrl.definingClass)
+            parameterTypes()
+        }
         val newTabUrlSetter = firstMethodDeclaratively {
             accessFlags(AccessFlags.PUBLIC, AccessFlags.STATIC)
             returnType("V")
             parameterTypes("Ljava/lang/String;")
             strings("chrome-native://newtab/")
         }
-        val escapedUrl = newTabUrl!!.toSmaliString()
+        check(newTabUrlSetter.implementation!!.registerCount >= 2) {
+            "Edge's new-tab URL setter has no local register"
+        }
 
         newTabUrlSetter.addInstructions(
             0,
             """
-                const-string p0, "$escapedUrl"
+                invoke-static {}, ${homepageManager.definingClass}->${homepageManager.name}()${homepageManager.returnType}
+                move-result-object v0
+                invoke-virtual { v0 }, ${homepageCustomUrl.definingClass}->${homepageCustomUrl.name}()${homepageCustomUrl.returnType}
+                move-result-object v0
+                invoke-virtual { v0 }, Lorg/chromium/url/GURL;->j()Ljava/lang/String;
+                move-result-object p0
             """,
+        )
+
+        val newTabSettings = firstMethodDeclaratively {
+            definingClass(EDGE_NTP_SETTINGS_CLASS)
+            returnType("V")
+            parameterTypes(
+                "Landroid/os/Bundle;",
+                "Ljava/lang/String;",
+            )
+            strings(
+                "news_feed_toggle",
+                "home_page_pref",
+                "browsing_options_pref",
+            )
+        }
+        val findPreferenceReferences = newTabSettings.instructions
+            .mapNotNull { instruction ->
+                instruction.methodReference?.takeIf { reference ->
+                    reference.parameterTypes ==
+                        listOf("Ljava/lang/CharSequence;") &&
+                        reference.returnType ==
+                        "Landroidx/preference/Preference;"
+                }
+            }
+            .distinctBy { reference ->
+                "${reference.definingClass}->${reference.name}" +
+                    "(${reference.parameterTypes.joinToString("")})" +
+                    reference.returnType
+            }
+        check(findPreferenceReferences.size == 1) {
+            "Could not uniquely identify Edge's preference lookup method"
+        }
+        val findPreference = findPreferenceReferences.single()
+        val findPreferenceSmali =
+            "${findPreference.definingClass}->${findPreference.name}" +
+                "(${findPreference.parameterTypes.joinToString("")})" +
+                findPreference.returnType
+        val returnIndexes = newTabSettings.instructions
+            .withIndex()
+            .filter { (_, instruction) ->
+                instruction.opcode == Opcode.RETURN_VOID
+            }
+            .map { it.index }
+        check(returnIndexes.size == 1) {
+            "Expected one return from Edge's new-tab settings initializer"
+        }
+        val hidePreferencesInstructions = buildString {
+            hiddenNewTabPreferenceKeys.forEachIndexed { index, key ->
+                appendLine("""const-string p1, "$key"""")
+                appendLine("invoke-virtual { p0, p1 }, $findPreferenceSmali")
+                appendLine("move-result-object p1")
+                appendLine("if-eqz p1, :edge_ntp_hidden_$index")
+                appendLine("const/4 p2, 0x0")
+                appendLine(
+                    "invoke-virtual { p1, p2 }, " +
+                        "Landroidx/preference/Preference;->setVisible(Z)V",
+                )
+                appendLine(":edge_ntp_hidden_$index")
+            }
+        }
+        newTabSettings.addInstructions(
+            returnIndexes.single(),
+            hidePreferencesInstructions,
         )
     }
 }

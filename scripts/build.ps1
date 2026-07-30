@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [ValidateRange(1, 64)]
-    [int]$CpuCount = 4
+    [int]$CpuCount = [Environment]::ProcessorCount
 )
 
 $ErrorActionPreference = 'Stop'

@@ -7,12 +7,14 @@ param(
 
     [string]$Rvp,
 
+    [string]$Keystore,
+
     [string]$NewTabUrl = 'http://tabpage.ariex.ru',
 
     [switch]$SideBySide,
 
     [ValidateRange(1, 64)]
-    [int]$CpuCount = 4
+    [int]$CpuCount = [Environment]::ProcessorCount
 )
 
 $ErrorActionPreference = 'Stop'
@@ -26,7 +28,12 @@ $patchesFile = if ($Rvp) {
 else {
     $defaultPatchesFile
 }
-$keystore = Join-Path $projectRoot 'edge-mod.keystore'
+$keystorePath = if ($Keystore) {
+    (Resolve-Path -LiteralPath $Keystore).Path
+}
+else {
+    Join-Path $projectRoot 'edge-mod.keystore'
+}
 $inputApk = (Resolve-Path -LiteralPath $Apk).Path
 $defaultJavaHome = 'C:\Program Files\Android\Android Studio\jbr'
 $javaHome = if ($env:JAVA_HOME) { $env:JAVA_HOME } else { $defaultJavaHome }
@@ -89,6 +96,12 @@ if (-not (Test-Path -LiteralPath $androidFrameworkApk)) {
 if (-not (Test-Path -LiteralPath $customAapt2)) {
     throw "Android SDK Build-Tools 37.0.0 not found at $customAapt2."
 }
+if (-not (Test-Path -LiteralPath $keystorePath -PathType Leaf)) {
+    throw (
+        "Signing keystore not found at $keystorePath. " +
+        "Pass -Keystore with a ReVanced CLI keystore."
+    )
+}
 
 $process = Get-Process -Id $PID
 $previousPriority = $process.PriorityClass
@@ -136,7 +149,7 @@ try {
         '-p', $patchesFile,
         '-b',
         '--exclusive',
-        '--keystore', $keystore,
+        '--keystore', $keystorePath,
         '--purge',
         '-t', $temporaryFiles,
         '-o', $outputApk
@@ -160,7 +173,7 @@ try {
 
     Write-Host "Patched APK: $outputApk"
     Write-Host "Patch bundle: $patchesFile"
-    Write-Host "Signing key: $keystore"
+    Write-Host "Signing key: $keystorePath"
 }
 finally {
     $env:JAVA_TOOL_OPTIONS = $previousJavaToolOptions
