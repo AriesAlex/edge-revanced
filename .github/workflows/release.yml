@@ -274,7 +274,7 @@ jobs:
               "repos/$env:GITHUB_REPOSITORY/git/refs/tags/$tag" `
               -f "sha=$patchCommit" `
               -F 'force=true' | Out-Null
-            gh release upload $tag $latestApk $apk $rvp --clobber
+            gh release upload $tag $latestApk $rvp --clobber
             gh release edit $tag `
               --title "Edge ReVanced $version" `
               --notes-file $notesPath
@@ -286,7 +286,7 @@ jobs:
               -f "target_commitish=$patchCommit" | Out-Null
           }
           else {
-            gh release create $tag $latestApk $apk $rvp `
+            gh release create $tag $latestApk $rvp `
               --target $patchCommit `
               --title "Edge ReVanced $version" `
               --notes-file $notesPath
