@@ -235,7 +235,7 @@ try {
         'ntp_on_startup_category'
         'browsing_options_pref'
     )
-    $newTabSettingsDexFiles = @(
+    $newTabSettingsDexCandidates = @(
         $dexFiles | Where-Object {
             $text = [Text.Encoding]::UTF8.GetString(
                 [IO.File]::ReadAllBytes($_)
@@ -247,10 +247,9 @@ try {
                 $text.Contains('browsing_options_pref')
         }
     )
-    if ($newTabSettingsDexFiles.Count -ne 1) {
+    if ($newTabSettingsDexCandidates.Count -eq 0) {
         throw (
-            "Expected exactly one DEX containing EdgeNTPSettings, found " +
-            "$($newTabSettingsDexFiles.Count)."
+            'No DEX contains the EdgeNTPSettings verification markers.'
         )
     }
 
@@ -285,25 +284,32 @@ try {
 
     $homepageText = Get-DexDump -DexPath $newTabUrlDexFiles[0]
     Write-Verbose 'Loaded homepage preference DEX.'
-    $newTabSettingsText = Get-DexDump -DexPath $newTabSettingsDexFiles[0]
-    $newTabSettingsMarkers = @(
-        [regex]::Matches(
-            $newTabSettingsText,
+    $newTabSettingsDefinitions = @()
+    foreach ($dexPath in $newTabSettingsDexCandidates) {
+        $settingsText = Get-DexDump -DexPath $dexPath
+        foreach ($marker in [regex]::Matches(
+            $settingsText,
             [regex]::Escape(
                 'EdgeNTPSettings.onViewCreated:' +
                     '(Landroid/view/View;Landroid/os/Bundle;)V'
             )
-        )
-    )
-    if ($newTabSettingsMarkers.Count -ne 1) {
+        )) {
+            $newTabSettingsDefinitions += [pscustomobject]@{
+                Text = $settingsText
+                Marker = $marker
+            }
+        }
+    }
+    if ($newTabSettingsDefinitions.Count -ne 1) {
         throw (
-            "Expected one EdgeNTPSettings.onViewCreated method, found " +
-            "$($newTabSettingsMarkers.Count)."
+            'Expected one EdgeNTPSettings.onViewCreated definition, found ' +
+            "$($newTabSettingsDefinitions.Count)."
         )
     }
+    $newTabSettingsDefinition = $newTabSettingsDefinitions[0]
     $newTabSettings = Get-ContainingMethod `
-        -Text $newTabSettingsText `
-        -MarkerIndex $newTabSettingsMarkers[0].Index
+        -Text $newTabSettingsDefinition.Text `
+        -MarkerIndex $newTabSettingsDefinition.Marker.Index
     $newTabSettingsRegisters = Assert-ValidRegisters -Method $newTabSettings
     if ($newTabSettingsRegisters -ne 3) {
         throw 'EdgeNTPSettings.onViewCreated no longer has three parameter registers.'
@@ -364,7 +370,7 @@ try {
     $urlMarkers = @(
         [regex]::Matches(
             $homepageText,
-            "\|\d{4}:\s+const-string(?:/jumbo)?\s+(?<register>v\d+),\s+$escapedUrl"
+            "\|[0-9a-f]{4}:\s+const-string(?:/jumbo)?\s+(?<register>v\d+),\s+$escapedUrl"
         )
     )
     if ($urlMarkers.Count -ne 1) {
@@ -492,7 +498,7 @@ try {
     $selectionInstructions = @(
         [regex]::Matches(
             $homepageSelection.Text,
-            '(?m)^.*\|\d{4}:.*$'
+            '(?m)^.*\|[0-9a-f]{4}:.*$'
         ).Value
     )
     if ($selectionInstructions.Count -ne 2) {
