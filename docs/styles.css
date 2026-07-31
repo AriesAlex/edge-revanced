@@ -372,7 +372,7 @@ footer span {
 
   .hero-art {
     position: absolute;
-    right: -10vw;
+    right: -16px;
     top: 124px;
     z-index: -1;
     opacity: 0.13;
