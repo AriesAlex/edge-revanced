@@ -243,14 +243,27 @@ try {
             $text.Contains(
                 'Lorg/chromium/chrome/browser/edge_settings/edge_ntp/EdgeNTPSettings;'
             ) -and
-                $text.Contains('news_feed_toggle') -and
-                $text.Contains('browsing_options_pref')
+                $text.Contains('ntp_home_page_category') -and
+                $text.Contains('home_page_pref')
         }
     )
     if ($newTabSettingsDexCandidates.Count -eq 0) {
         throw (
             'No DEX contains the EdgeNTPSettings verification markers.'
         )
+    }
+    $chromeWebStoreDexCandidates = @(
+        $dexFiles | Where-Object {
+            $text = [Text.Encoding]::UTF8.GetString(
+                [IO.File]::ReadAllBytes($_)
+            )
+            $text.Contains(
+                'Lapp/revanced/extension/edge/extensions/ChromeWebStore;'
+            ) -and $text.Contains('onUrlUpdated')
+        }
+    )
+    if ($chromeWebStoreDexCandidates.Count -eq 0) {
+        throw 'No DEX contains the Chrome Web Store hook markers.'
     }
 
     $newTabUrlDexFiles = @(
@@ -307,6 +320,40 @@ try {
         )
     }
     $newTabSettingsDefinition = $newTabSettingsDefinitions[0]
+    $newTabInitializerDefinitions = @()
+    foreach ($marker in [regex]::Matches(
+        $newTabSettingsDefinition.Text,
+        [regex]::Escape('"ntp_home_page_category"')
+    )) {
+        $candidate = Get-ContainingMethod `
+            -Text $newTabSettingsDefinition.Text `
+            -MarkerIndex $marker.Index
+        if (
+            $candidate.Class -eq
+                'Lorg/chromium/chrome/browser/edge_settings/edge_ntp/EdgeNTPSettings;' -and
+            $candidate.Text -match
+                "(?m)^\s+type\s+:\s+'\(Landroid/os/Bundle;Ljava/lang/String;\)V'" -and
+            $candidate.Text -match [regex]::Escape('"home_page_pref"')
+        ) {
+            $newTabInitializerDefinitions += $candidate
+        }
+    }
+    $newTabInitializerDefinitions = @(
+        $newTabInitializerDefinitions |
+            Sort-Object -Property Class, Name -Unique
+    )
+    if ($newTabInitializerDefinitions.Count -ne 1) {
+        throw (
+            'Expected one EdgeNTPSettings preference initializer, found ' +
+            "$($newTabInitializerDefinitions.Count)."
+        )
+    }
+    $expectedHiddenNewTabPreferenceKeys = @(
+        $hiddenNewTabPreferenceKeys | Where-Object {
+            $newTabInitializerDefinitions[0].Text -match
+                [regex]::Escape("`"$_`"")
+        }
+    )
     $newTabSettings = Get-ContainingMethod `
         -Text $newTabSettingsDefinition.Text `
         -MarkerIndex $newTabSettingsDefinition.Marker.Index
@@ -326,7 +373,7 @@ try {
     ) {
         throw 'The injected new-tab settings flow must remain branch-free.'
     }
-    foreach ($preferenceKey in $hiddenNewTabPreferenceKeys) {
+    foreach ($preferenceKey in $expectedHiddenNewTabPreferenceKeys) {
         $keyInstructionIndexes = @(
             0..($newTabSettingsInstructions.Count - 1) | Where-Object {
                 $newTabSettingsInstructions[$_] -match
@@ -365,6 +412,91 @@ try {
         }
     }
     Write-Verbose 'Verified branch-free Edge new-tab settings bytecode.'
+
+    $chromeWebStoreHookDefinitions = @()
+    foreach ($dexPath in $chromeWebStoreDexCandidates) {
+        $dexText = Get-DexDump -DexPath $dexPath
+        foreach ($marker in [regex]::Matches(
+            $dexText,
+            [regex]::Escape(
+                'Lapp/revanced/extension/edge/extensions/ChromeWebStore;' +
+                    '.onUrlUpdated:(Ljava/lang/Object;Ljava/lang/String;)V'
+            )
+        )) {
+            $candidate = Get-ContainingMethod `
+                -Text $dexText `
+                -MarkerIndex $marker.Index
+            if (
+                $candidate.Class -ne
+                    'Lapp/revanced/extension/edge/extensions/ChromeWebStore;' -and
+                $candidate.Text -match [regex]::Escape(
+                    '(Lorg/chromium/chrome/browser/tab/Tab;' +
+                        'Lorg/chromium/url/GURL;)V'
+                )
+            ) {
+                $chromeWebStoreHookDefinitions += $candidate
+            }
+        }
+    }
+    $chromeWebStoreHookDefinitions = @(
+        $chromeWebStoreHookDefinitions |
+            Sort-Object -Property Class, Name -Unique
+    )
+    if ($chromeWebStoreHookDefinitions.Count -ne 1) {
+        throw (
+            'Expected one Chrome Web Store URL hook, found ' +
+            "$($chromeWebStoreHookDefinitions.Count)."
+        )
+    }
+    $chromeWebStoreHook = $chromeWebStoreHookDefinitions[0]
+    [void](Assert-ValidRegisters -Method $chromeWebStoreHook)
+    $chromeWebStoreInstructions = @(
+        [regex]::Matches(
+            $chromeWebStoreHook.Text,
+            '(?m)^.*\|[0-9a-f]{4}:.*$'
+        ).Value
+    )
+    if ($chromeWebStoreInstructions.Count -lt 5) {
+        throw 'The Chrome Web Store URL hook is incomplete.'
+    }
+    if (
+        $chromeWebStoreInstructions[0] -notmatch
+            '\|[0-9a-f]{4}:\s+if-eqz\s+(?<urlRegister>v\d+),\s+' +
+            '(?<originalAddress>[0-9a-f]{4})'
+    ) {
+        throw 'The Chrome Web Store hook does not guard a missing URL.'
+    }
+    $urlRegister = $Matches.urlRegister
+    $originalAddress = $Matches.originalAddress
+    if (
+        $chromeWebStoreInstructions[1] -notmatch
+            "invoke-virtual\s+\{$urlRegister\},\s+" +
+            'Lorg/chromium/url/GURL;\.j:\(\)Ljava/lang/String;'
+    ) {
+        throw 'The Chrome Web Store hook does not convert the updated URL.'
+    }
+    if (
+        $chromeWebStoreInstructions[2] -notmatch
+            'move-result-object\s+(?<temporaryRegister>v\d+)'
+    ) {
+        throw 'The Chrome Web Store hook URL result is invalid.'
+    }
+    $temporaryRegister = $Matches.temporaryRegister
+    if (
+        $chromeWebStoreInstructions[3] -notmatch
+            "invoke-static\s+\{v\d+,\s+$temporaryRegister\},\s+" +
+            'Lapp/revanced/extension/edge/extensions/ChromeWebStore;' +
+            '\.onUrlUpdated:\(Ljava/lang/Object;Ljava/lang/String;\)V'
+    ) {
+        throw 'The Chrome Web Store callback arguments are invalid.'
+    }
+    if (
+        $chromeWebStoreInstructions[4] -notmatch
+            "\|${originalAddress}:"
+    ) {
+        throw 'The Chrome Web Store guard does not resume the original method.'
+    }
+    Write-Verbose 'Verified Chrome Web Store URL hook control flow.'
 
     $escapedUrl = [regex]::Escape("`"$ExpectedNewTabUrl`"")
     $urlMarkers = @(
@@ -713,7 +845,11 @@ try {
     )
     Write-Host (
         "Verified branch-free new-tab settings for " +
-        "$($hiddenNewTabPreferenceKeys.Count) hidden preferences."
+        "$($expectedHiddenNewTabPreferenceKeys.Count) available hidden preferences."
+    )
+    Write-Host (
+        "Verified Chrome Web Store URL hook in " +
+        "$($chromeWebStoreHook.Class)->$($chromeWebStoreHook.Name)."
     )
     Write-Host (
         "Verified stable Edge icon in " +

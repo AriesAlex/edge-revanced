@@ -180,7 +180,8 @@ clean monolithic Edge Canary APK (arm64-v8a)
   checks out a pinned official Gradle plugin commit, and prepares DevTools.
 - [`patch.ps1`](scripts/patch.ps1) applies the `.rvp`, repackages, and signs the
   APK. [`verify-patched-apk.ps1`](scripts/verify-patched-apk.ps1) checks the
-  preference-backed new-tab bytecode and Canary icon replacement.
+  preference-backed new-tab bytecode, Chrome Web Store hook control flow,
+  Canary icon replacement, and the tab-layout animation continuation.
 - [`edge-canary.ts`](scripts/edge-canary.ts) discovers and downloads the latest
   monolithic ARM64 Canary APK for CI through the public contract of the
   MIT-licensed [EFF apkeep](https://github.com/EFForg/apkeep) project.

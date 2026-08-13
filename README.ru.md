@@ -170,7 +170,8 @@ adb install -r 'C:\path\to\edge-revanced.apk'
   получает закреплённый commit официального Gradle plugin и собирает DevTools.
 - [`patch.ps1`](scripts/patch.ps1) применяет `.rvp`, перепаковывает и подписывает
   APK, а [`verify-patched-apk.ps1`](scripts/verify-patched-apk.ps1) проверяет
-  DEX-контракт новой вкладки.
+  DEX-контракт новой вкладки, поток управления хуком Chrome Web Store, замену
+  иконки Canary и достижимость оригинального продолжения анимации вкладок.
 - [`edge-canary.ts`](scripts/edge-canary.ts) находит и скачивает последний
   монолитный ARM64 APK Canary для CI через открытый контракт MIT-проекта
   [EFF apkeep](https://github.com/EFForg/apkeep).

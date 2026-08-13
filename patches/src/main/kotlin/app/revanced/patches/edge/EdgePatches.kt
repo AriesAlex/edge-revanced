@@ -98,6 +98,10 @@ private val hiddenNewTabPreferenceKeys = listOf(
     "ntp_on_startup_category",
     "browsing_options_pref",
 )
+private val requiredNewTabPreferenceKeys = listOf(
+    "ntp_home_page_category",
+    "home_page_pref",
+)
 
 private fun String.toSmaliString(): String = buildString(length) {
     this@toSmaliString.forEach { character ->
@@ -456,31 +460,35 @@ private val customNewTabResourcesPatch = resourcePatch {
             .filter { file ->
                 val text = file.readText()
                 text.contains("home_page_pref") &&
-                    text.contains("browsing_options_pref") &&
-                    text.contains("weather_widget_toggle")
+                    text.contains("ntp_home_page_category")
             }
         check(newTabSettingsFiles.size == 1) {
             "Expected one Edge new-tab settings XML, found " +
                 newTabSettingsFiles.size
         }
         document("res/xml/${newTabSettingsFiles.single().name}").use { document ->
-            val keyedElements = document.getElementsByTagName("*")
+            val elementsByKey = document.getElementsByTagName("*")
                 .let { nodes ->
                     (0 until nodes.length)
                         .map { nodes.item(it) as Element }
                         .filter { it.hasAttribute("android:key") }
-                        .associateBy { it.getAttribute("android:key") }
+                        .groupBy { it.getAttribute("android:key") }
                 }
-            val expectedKeys = hiddenNewTabPreferenceKeys +
-                listOf("ntp_home_page_category", "home_page_pref")
-            check(expectedKeys.all(keyedElements::containsKey)) {
+            check(elementsByKey.values.all { elements -> elements.size == 1 }) {
+                "The Edge new-tab settings XML contains duplicate preference keys"
+            }
+            check(requiredNewTabPreferenceKeys.all(elementsByKey::containsKey)) {
                 "The Edge new-tab settings XML has an unexpected structure"
             }
-
-            hiddenNewTabPreferenceKeys.forEach { key ->
-                keyedElements.getValue(key)
-                    .setAttribute("android:visible", "false")
+            val keyedElements = elementsByKey.mapValues { (_, elements) ->
+                elements.single()
             }
+
+            hiddenNewTabPreferenceKeys
+                .mapNotNull(keyedElements::get)
+                .forEach { element ->
+                    element.setAttribute("android:visible", "false")
+                }
             keyedElements.getValue("ntp_home_page_category")
                 .removeAttribute("android:title")
         }
@@ -502,9 +510,8 @@ private val customNewTabResourcesPatch = resourcePatch {
                     }
                     .map { file -> directory to file }
             }
-        check(homepageLayouts.size == 2) {
-            "Expected both Edge homepage preference layouts, found " +
-                homepageLayouts.size
+        check(homepageLayouts.isNotEmpty()) {
+            "Expected at least one Edge homepage preference layout"
         }
         homepageLayouts.forEach { (directory, file) ->
             document("res/${directory.name}/${file.name}").use { document ->
@@ -820,9 +827,8 @@ val customNewTabPatch = bytecodePatch(
                 "Ljava/lang/String;",
             )
             strings(
-                "news_feed_toggle",
+                "ntp_home_page_category",
                 "home_page_pref",
-                "browsing_options_pref",
             )
         }
         val findPreferenceReferences = newTabSettings.instructions
@@ -842,6 +848,12 @@ val customNewTabPatch = bytecodePatch(
         check(findPreferenceReferences.size == 1) {
             "Could not uniquely identify Edge's preference lookup method"
         }
+        val availableHiddenPreferenceKeys = newTabSettings.instructions
+            .mapNotNull { instruction -> instruction.stringReference?.string }
+            .toSet()
+            .let { referencedStrings ->
+                hiddenNewTabPreferenceKeys.filter(referencedStrings::contains)
+            }
         val findPreference = findPreferenceReferences.single()
         val findPreferenceSmali =
             "${findPreference.definingClass}->${findPreference.name}" +
@@ -870,7 +882,7 @@ val customNewTabPatch = bytecodePatch(
         }
         val hidePreferencesInstructions = buildString {
             appendLine("const/4 p2, 0x0")
-            hiddenNewTabPreferenceKeys.forEach { key ->
+            availableHiddenPreferenceKeys.forEach { key ->
                 appendLine("""const-string p1, "$key"""")
                 appendLine("invoke-virtual { p0, p1 }, $findPreferenceSmali")
                 appendLine("move-result-object p1")
@@ -1391,31 +1403,35 @@ val chromeWebStorePatch = bytecodePatch(
             )
         }
         val originalImplementation = urlUpdatedObserver.implementation!!
-        check(originalImplementation.registerCount == 3) {
-            "Unexpected URL observer register count"
+        val parameterRegisterCount = urlUpdatedObserver.parameterTypes.size + 1
+        check(originalImplementation.registerCount >= parameterRegisterCount) {
+            "URL observer register file is smaller than its parameters"
         }
-        urlUpdatedObserver.setImplementation(
-            MutableMethodImplementation(
-                ImmutableMethodImplementation(
-                    originalImplementation.registerCount + 1,
-                    originalImplementation.instructions,
-                    originalImplementation.tryBlocks,
-                    originalImplementation.debugItems,
+        if (originalImplementation.registerCount == parameterRegisterCount) {
+            urlUpdatedObserver.setImplementation(
+                MutableMethodImplementation(
+                    ImmutableMethodImplementation(
+                        originalImplementation.registerCount + 1,
+                        originalImplementation.instructions,
+                        originalImplementation.tryBlocks,
+                        originalImplementation.debugItems,
+                    ),
                 ),
-            ),
-        )
-        // Expanding the register file shifts the receiver from v0 to v1. Restore it
-        // at the original entry point after the injected code has used local v0.
-        urlUpdatedObserver.addInstructions(0, "move-object v0, p0")
+            )
+            // Edge 152 has no local register. Expanding the register file shifts
+            // its receiver from v0 to v1, so restore v0 before the old body.
+            urlUpdatedObserver.addInstructions(0, "move-object v0, p0")
+        }
+        val originalEntry = urlUpdatedObserver.getInstruction(0)
         urlUpdatedObserver.addInstructionsWithLabels(
             0,
             """
                 if-eqz p2, :edge_cws_original
                 invoke-virtual { p2 }, Lorg/chromium/url/GURL;->j()Ljava/lang/String;
-                move-result-object p2
-                invoke-static { p1, p2 }, $CHROME_WEB_STORE_EXTENSION_CLASS->onUrlUpdated(Ljava/lang/Object;Ljava/lang/String;)V
+                move-result-object v0
+                invoke-static { p1, v0 }, $CHROME_WEB_STORE_EXTENSION_CLASS->onUrlUpdated(Ljava/lang/Object;Ljava/lang/String;)V
             """,
-            ExternalLabel("edge_cws_original", urlUpdatedObserver.getInstruction(0)),
+            ExternalLabel("edge_cws_original", originalEntry),
         )
 
         val installResultHandler = firstMethodDeclaratively {
