@@ -190,6 +190,13 @@ An `.rvp` is a JAR container with patch metadata, JVM patch classes, their
 Android DEX form, the runtime extension, and resources. Microsoft Edge code is
 not distributed inside the patch bundle.
 
+The investigated alternative of keeping an old customized Edge UI while
+transplanting a newer `libchrome.so` is documented in
+[`research/core-runtime-transplant.md`](research/core-runtime-transplant.md).
+The experiment found that the native library, generated Java JNI multiplexer,
+callbacks, and their transitive Java dependencies form one versioned runtime
+unit; a five-file engine swap is not a safe release architecture.
+
 <details>
 <summary><strong>Build from source</strong></summary>
 

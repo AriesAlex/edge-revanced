@@ -179,6 +179,13 @@ adb install -r 'C:\path\to\edge-revanced.apk'
 `.rvp` — JAR-контейнер с metadata, JVM-классами патчей, их Android DEX-версией,
 runtime extension и ресурсами. Сам Edge и Microsoft-код внутрь `.rvp` не входят.
 
+Эксперимент с сохранением старого кастомизированного UI Edge и переносом нового
+`libchrome.so` описан в
+[`research/core-runtime-transplant.md`](research/core-runtime-transplant.md).
+Он показал, что native-библиотека, сгенерированный Java JNI multiplexer,
+callbacks и их транзитивные Java-зависимости образуют единый версионный runtime:
+безопасно обновлять движок заменой пяти файлов нельзя.
+
 <details>
 <summary><strong>Сборка из исходников</strong></summary>
 
